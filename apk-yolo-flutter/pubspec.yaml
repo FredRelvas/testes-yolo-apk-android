@@ -41,5 +41,3 @@ flutter:
       android:
         package: com.ultralytics.yolo
         pluginClass: YOLOPlugin
-      ios:
-        pluginClass: YOLOPlugin
