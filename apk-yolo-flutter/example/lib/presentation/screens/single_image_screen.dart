@@ -46,13 +46,13 @@ class _SingleImageScreenState extends State<SingleImageScreen> {
 
   /// Initializes the YOLO model for inference
   Future<void> _initializeYOLO() async {
-    // _modelPath = await _modelManager.getModelPath(ModelType.yolo11nFloat16);
+     // _modelPath = await _modelManager.getModelPath(ModelType.yolo11nFloat16);
     _modelPath = await _modelManager.getModelPath(ModelType.detect);
     if (_modelPath == null) return;
     _yolo = YOLO(
       modelPath: _modelPath!,
       task: YOLOTask.detect,
-      useGpu: !Platform.isAndroid,
+      useGpu: true,
     );
     try {
       await _yolo.loadModel();

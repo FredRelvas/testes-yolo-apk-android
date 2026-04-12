@@ -42,12 +42,21 @@ class YOLO(
             Interpreter.Options().apply {
                 // Use all available CPU cores for maximum parallelism
                 setNumThreads(Runtime.getRuntime().availableProcessors())
-                
+
+                // XNNPACK speeds up CPU-side ops (also helps hybrid graphs with delegates)
+                try {
+                    setUseXNNPACK(true)
+                } catch (e: Exception) {
+                    Log.w(TAG, "setUseXNNPACK not applied: ${e.message}")
+                }
+
                 // Allow FP16 precision for faster computation
                 setAllowFp16PrecisionForFp32(true)
-                
-                // Log configuration
-                Log.d(TAG, "Interpreter options: threads=${Runtime.getRuntime().availableProcessors()}, FP16 enabled")
+
+                Log.d(
+                    TAG,
+                    "Interpreter options: threads=${Runtime.getRuntime().availableProcessors()}, XNNPACK, FP16",
+                )
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error creating interpreter options: ${e.message}")
