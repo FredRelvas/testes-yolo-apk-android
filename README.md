@@ -59,7 +59,34 @@ Os modelos ficam em `example/android/app/src/main/assets/`. Atualmente incluidos
 | `modelcoco_float16.tflite` | 5 MB | COCO dataset, meia precisao |
 | `exp_yolo26m_epi_negative_float32.tflite` | 78 MB | Modelo experimental EPI |
 
-Para adicionar novos modelos, coloque o arquivo `.tflite` nessa mesma pasta.
+### Adicionar um novo modelo (zero-touch)
+
+1. Copie o arquivo `.tflite` para `example/android/app/src/main/assets/`.
+2. Rode o app. O modelo aparece automaticamente no seletor da camera, nos dropdowns de benchmark e no batch.
+
+O app descobre `.tflite` bundlados via Kotlin (`listModels` em `YOLOPlugin.kt`) e constroi um `ModelRegistry` na inicializacao. Arquivos sem entrada no manifesto usam: `task=detect`, `benchmark=true`, label = nome do arquivo sem extensao.
+
+### Refinar metadados (opcional)
+
+Para customizar label, task, marcar como default ou ocultar do benchmark, edite `example/android/app/src/main/assets/models.json`:
+
+```json
+[
+  {"file": "modelcoco_float32.tflite", "label": "COCO fp32", "task": "detect", "benchmark": true, "default": true},
+  {"file": "yolo11n-seg.tflite",       "label": "YOLO11n Seg", "task": "segment"},
+  {"file": "experimento_v2.tflite",    "benchmark": false}
+]
+```
+
+Campos (todos opcionais, exceto `file`):
+
+| Campo | Tipo | Default | O que faz |
+|-------|------|---------|-----------|
+| `file` | string | — | Nome exato do `.tflite` em `assets/` |
+| `label` | string | nome sem extensao | Texto mostrado na UI |
+| `task` | `detect` \| `segment` \| `classify` \| `pose` \| `obb` | `detect` | Tarefa YOLO |
+| `benchmark` | bool | `true` | Aparece no benchmark/batch |
+| `default` | bool | `false` | Selecao inicial ao abrir o app |
 
 ### Como exportar seus proprios modelos
 
