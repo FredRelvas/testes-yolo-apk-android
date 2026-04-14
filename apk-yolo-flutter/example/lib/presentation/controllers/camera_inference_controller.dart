@@ -7,6 +7,7 @@ import 'package:ultralytics_yolo/utils/error_handler.dart';
 import 'package:ultralytics_yolo/yolo_view.dart';
 import '../../models/models.dart';
 import '../../services/model_manager.dart';
+import '../../services/model_registry.dart';
 
 /// Controller that manages the state and business logic for camera inference
 class CameraInferenceController extends ChangeNotifier {
@@ -23,7 +24,7 @@ class CameraInferenceController extends ChangeNotifier {
   SliderType _activeSlider = SliderType.none;
 
   // Model state
-  ModelType _selectedModel = ModelType.detect;
+  ModelInfo _selectedModel = ModelRegistry.instance.defaultModel;
   bool _isModelLoading = false;
   String? _modelPath;
   String _loadingMessage = '';
@@ -49,7 +50,7 @@ class CameraInferenceController extends ChangeNotifier {
   double get iouThreshold => _iouThreshold;
   int get numItemsThreshold => _numItemsThreshold;
   SliderType get activeSlider => _activeSlider;
-  ModelType get selectedModel => _selectedModel;
+  ModelInfo get selectedModel => _selectedModel;
   bool get isModelLoading => _isModelLoading;
   String? get modelPath => _modelPath;
   String get loadingMessage => _loadingMessage;
@@ -205,7 +206,7 @@ class CameraInferenceController extends ChangeNotifier {
     }
   }
 
-  void changeModel(ModelType model) {
+  void changeModel(ModelInfo model) {
     if (_isDisposed) return;
 
     if (!_isModelLoading && model != _selectedModel) {
@@ -234,7 +235,7 @@ class CameraInferenceController extends ChangeNotifier {
     if (_isDisposed) return;
 
     _isModelLoading = true;
-    _loadingMessage = 'Loading ${_selectedModel.modelName} model...';
+    _loadingMessage = 'Loading ${_selectedModel.label} model...';
     _downloadProgress = 0.0;
     _detectionCount = 0;
     _currentFps = 0.0;
@@ -252,14 +253,14 @@ class CameraInferenceController extends ChangeNotifier {
       notifyListeners();
 
       if (modelPath == null) {
-        throw Exception('Failed to load ${_selectedModel.modelName} model');
+        throw Exception('Failed to load ${_selectedModel.label} model');
       }
     } catch (e) {
       if (_isDisposed) return;
 
       final error = YOLOErrorHandler.handleError(
         e,
-        'Failed to load model ${_selectedModel.modelName} for task ${_selectedModel.task.name}',
+        'Failed to load model ${_selectedModel.label} for task ${_selectedModel.task.name}',
       );
 
       _isModelLoading = false;

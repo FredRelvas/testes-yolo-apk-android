@@ -13,6 +13,7 @@ import 'package:ultralytics_yolo/utils/error_handler.dart';
 import '../../models/benchmark_result.dart';
 import '../../models/models.dart';
 import '../../services/model_manager.dart';
+import '../../services/model_registry.dart';
 import '../../utils/detection_eval_metrics.dart';
 import '../controllers/benchmark_controller.dart';
 
@@ -33,7 +34,9 @@ class _BatchInferenceScreenState extends State<BatchInferenceScreen> {
   YOLO? _yolo;
   bool _isModelReady = false;
   bool _isModelLoading = false;
-  ModelType _selectedModel = BenchmarkController.benchmarkModels.first;
+  ModelInfo _selectedModel = BenchmarkController.benchmarkModels.isNotEmpty
+      ? BenchmarkController.benchmarkModels.first
+      : ModelRegistry.instance.defaultModel;
   String _status = 'Carregando modelo...';
   double _progress = 0.0;
   bool _isRunning = false;
@@ -66,7 +69,7 @@ class _BatchInferenceScreenState extends State<BatchInferenceScreen> {
     setState(() {
       _isModelLoading = true;
       _isModelReady = false;
-      _status = 'Carregando ${_selectedModel.modelName}...';
+      _status = 'Carregando ${_selectedModel.label}...';
     });
     try {
       _yolo = null;
@@ -74,7 +77,7 @@ class _BatchInferenceScreenState extends State<BatchInferenceScreen> {
       if (modelPath == null || !mounted) {
         setState(() {
           _isModelLoading = false;
-          _status = 'Modelo ${_selectedModel.modelName} não encontrado.';
+          _status = 'Modelo ${_selectedModel.label} não encontrado.';
         });
         return;
       }
@@ -91,7 +94,7 @@ class _BatchInferenceScreenState extends State<BatchInferenceScreen> {
           _isModelLoading = false;
           _isModelReady = true;
           _status =
-              'Modelo ${_selectedModel.modelName} pronto. Selecione as imagens.';
+              'Modelo ${_selectedModel.label} pronto. Selecione as imagens.';
         });
       }
     } catch (e) {
@@ -106,7 +109,7 @@ class _BatchInferenceScreenState extends State<BatchInferenceScreen> {
     }
   }
 
-  Future<void> _onModelChanged(ModelType? model) async {
+  Future<void> _onModelChanged(ModelInfo? model) async {
     if (model == null || _isRunning || model == _selectedModel) return;
     setState(() => _selectedModel = model);
     await _loadModel();
@@ -349,7 +352,7 @@ class _BatchInferenceScreenState extends State<BatchInferenceScreen> {
 
       if (mounted && allResults.isNotEmpty) {
         final payload = <String, dynamic>{
-          'model': _selectedModel.modelName,
+          'model': _selectedModel.name,
           'results': allResults,
           if (summary != null)
             'summary': {
@@ -358,7 +361,7 @@ class _BatchInferenceScreenState extends State<BatchInferenceScreen> {
               'images_total': allResults.length,
             },
           'benchmark_summary': {
-            'model': _selectedModel.modelName,
+            'model': _selectedModel.name,
             'avg_ms': summaryBenchmark.avgTimeMs,
             'min_ms': summaryBenchmark.minTimeMs,
             'max_ms': summaryBenchmark.maxTimeMs,
@@ -480,7 +483,7 @@ class _BatchInferenceScreenState extends State<BatchInferenceScreen> {
       };
     }).toList();
     return {
-      'model': _selectedModel.modelName,
+      'model': _selectedModel.name,
       'results': results,
     };
   }
@@ -537,7 +540,7 @@ class _BatchInferenceScreenState extends State<BatchInferenceScreen> {
             '${m['fn']}',
           ];
     buffer.writeln(
-      '${_selectedModel.modelName},${s.imageCount},'
+      '${_selectedModel.name},${s.imageCount},'
       '${s.avgTimeMs.toStringAsFixed(2)},${s.minTimeMs.toStringAsFixed(2)},'
       '${s.maxTimeMs.toStringAsFixed(2)},${s.fps.toStringAsFixed(2)},'
       '${s.totalDetections},${s.avgDetectionsPerImage.toStringAsFixed(2)},'
@@ -547,7 +550,7 @@ class _BatchInferenceScreenState extends State<BatchInferenceScreen> {
     final dir = await getApplicationDocumentsDirectory();
     final ts = DateTime.now().millisecondsSinceEpoch;
     final file = File(
-      '${dir.path}/batch_${_selectedModel.modelName}_$ts.csv',
+      '${dir.path}/batch_${_selectedModel.name}_$ts.csv',
     );
     await file.writeAsString(buffer.toString());
     _lastCsvPath = file.path;
@@ -558,7 +561,7 @@ class _BatchInferenceScreenState extends State<BatchInferenceScreen> {
     final path = await _exportBenchmarkCsv();
     await Share.shareXFiles(
       [XFile(path)],
-      text: 'Batch ${_selectedModel.modelName}',
+      text: 'Batch ${_selectedModel.label}',
     );
   }
 
@@ -624,13 +627,13 @@ class _BatchInferenceScreenState extends State<BatchInferenceScreen> {
                           TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                     const SizedBox(height: 8),
-                    DropdownButtonFormField<ModelType>(
+                    DropdownButtonFormField<ModelInfo>(
                       initialValue: _selectedModel,
                       isExpanded: true,
                       items: BenchmarkController.benchmarkModels.map((model) {
                         return DropdownMenuItem(
                           value: model,
-                          child: Text(model.modelName),
+                          child: Text(model.label),
                         );
                       }).toList(),
                       onChanged: _isRunning || _isModelLoading
@@ -690,7 +693,7 @@ class _BatchInferenceScreenState extends State<BatchInferenceScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Benchmark — ${_selectedModel.modelName}',
+                        'Benchmark — ${_selectedModel.label}',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 18,

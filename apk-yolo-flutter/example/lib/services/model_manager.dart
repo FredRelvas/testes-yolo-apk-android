@@ -37,29 +37,29 @@ class ModelManager {
   ModelManager({this.onDownloadProgress, this.onStatusUpdate});
 
   /// Gets the appropriate model path for the current platform and model type.
-  Future<String?> getModelPath(ModelType modelType) async => Platform.isIOS
-      ? _getIOSModelPath(modelType)
+  Future<String?> getModelPath(ModelInfo model) async => Platform.isIOS
+      ? _getIOSModelPath(model)
       : Platform.isAndroid
-      ? _getAndroidModelPath(modelType)
+      ? _getAndroidModelPath(model)
       : null;
 
   /// Gets the iOS model path (.mlpackage format).
-  Future<String?> _getIOSModelPath(ModelType modelType) async {
-    _updateStatus('Checking for ${modelType.modelName} model...');
+  Future<String?> _getIOSModelPath(ModelInfo model) async {
+    _updateStatus('Checking for ${model.name} model...');
     try {
-      final bundleCheck = await _checkModelExistsInBundle(modelType.modelName);
-      if (bundleCheck['exists'] == true) return modelType.modelName;
+      final bundleCheck = await _checkModelExistsInBundle(model.name);
+      if (bundleCheck['exists'] == true) return model.name;
     } catch (_) {}
     final dir = await getApplicationDocumentsDirectory();
-    final modelDir = Directory('${dir.path}/${modelType.modelName}.mlpackage');
+    final modelDir = Directory('${dir.path}/${model.name}.mlpackage');
     if (await modelDir.exists()) {
       if (await File('${modelDir.path}/Manifest.json').exists()) {
         return modelDir.path;
       }
       await modelDir.delete(recursive: true);
     }
-    _updateStatus('Downloading ${modelType.modelName} model...');
-    return _downloadIOSModel(modelType);
+    _updateStatus('Downloading ${model.name} model...');
+    return _downloadIOSModel(model);
   }
 
   /// Check if a model exists in the iOS bundle
@@ -78,27 +78,27 @@ class ModelManager {
   }
 
   /// Download iOS model (.mlpackage format) or extract from assets
-  Future<String?> _downloadIOSModel(ModelType modelType) async {
+  Future<String?> _downloadIOSModel(ModelInfo model) async {
     final dir = await getApplicationDocumentsDirectory();
-    final modelDir = Directory('${dir.path}/${modelType.modelName}.mlpackage');
+    final modelDir = Directory('${dir.path}/${model.name}.mlpackage');
     if (await modelDir.exists()) return modelDir.path;
     try {
       final zipData = await rootBundle.load(
-        'assets/models/${modelType.modelName}.mlpackage.zip',
+        'assets/models/${model.name}.mlpackage.zip',
       );
       return await _extractZip(
         zipData.buffer.asUint8List(),
         modelDir,
-        modelType.modelName,
+        model.name,
       );
     } catch (_) {}
-    return await _downloadAndExtract(modelType, modelDir, '.mlpackage.zip');
+    return await _downloadAndExtract(model, modelDir, '.mlpackage.zip');
   }
 
   /// Gets the Android model path (.tflite format)
-  Future<String?> _getAndroidModelPath(ModelType modelType) async {
-    _updateStatus('Checking for ${modelType.modelName} model...');
-    final bundledName = '${modelType.modelName}.tflite';
+  Future<String?> _getAndroidModelPath(ModelInfo model) async {
+    _updateStatus('Checking for ${model.name} model...');
+    final bundledName = model.file;
 
     // Check Android native assets first
     try {
@@ -118,7 +118,7 @@ class ModelManager {
     if (await modelFile.exists()) return modelFile.path;
 
     // Download if not found
-    _updateStatus('Downloading ${modelType.modelName} model...');
+    _updateStatus('Downloading ${model.name} model...');
     final bytes = await _downloadFile('$_modelDownloadBaseUrl/$bundledName');
     if (bytes != null && bytes.isNotEmpty) {
       await modelFile.writeAsBytes(bytes);
@@ -200,16 +200,16 @@ class ModelManager {
 
   /// Helper method to download and extract model
   Future<String?> _downloadAndExtract(
-    ModelType modelType,
+    ModelInfo model,
     Directory targetDir,
     String ext,
   ) async {
     final bytes = await _downloadFile(
-      '$_modelDownloadBaseUrl/${modelType.modelName}$ext',
+      '$_modelDownloadBaseUrl/${model.name}$ext',
     );
     if (bytes == null) return null;
     return ext.contains('zip')
-        ? await _extractZip(bytes, targetDir, modelType.modelName)
+        ? await _extractZip(bytes, targetDir, model.name)
         : (await File(targetDir.path).writeAsBytes(bytes), targetDir.path).$2;
   }
 

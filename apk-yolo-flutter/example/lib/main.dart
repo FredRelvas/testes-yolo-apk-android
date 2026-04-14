@@ -2,8 +2,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:ultralytics_yolo_example/presentation/screens/home_screen.dart';
+import 'package:ultralytics_yolo_example/services/model_registry.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await ModelRegistry.load();
   runApp(const MyApp());
 }
 

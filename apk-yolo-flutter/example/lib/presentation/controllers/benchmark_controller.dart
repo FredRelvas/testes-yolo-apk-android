@@ -6,18 +6,14 @@ import 'package:ultralytics_yolo/yolo.dart';
 import '../../models/models.dart';
 import '../../models/benchmark_result.dart';
 import '../../services/model_manager.dart';
+import '../../services/model_registry.dart';
 
 class BenchmarkController extends ChangeNotifier {
-  static const benchmarkModels = [
-    ModelType.detect,    // exp_yolo26m_epi_negative_float32
-    ModelType.cocoFloat32,
-    ModelType.cocoFloat16,
-    // ModelType.yolo11nFloat16,
-    // ModelType.detectFloat16,
-  ];
+  /// Models discovered from assets and flagged for benchmarking.
+  static List<ModelInfo> get benchmarkModels =>
+      ModelRegistry.instance.benchmarkModels;
 
-  // ModelType _selectedModel = ModelType.yolo11nFloat16;
-  ModelType _selectedModel = ModelType.detect;
+  ModelInfo _selectedModel = ModelRegistry.instance.defaultModel;
   List<XFile> _selectedImages = [];
   bool _isModelLoading = false;
   bool _isRunning = false;
@@ -29,7 +25,7 @@ class BenchmarkController extends ChangeNotifier {
   int _failedCount = 0;
   YOLO? _yolo;
 
-  ModelType get selectedModel => _selectedModel;
+  ModelInfo get selectedModel => _selectedModel;
   List<XFile> get selectedImages => _selectedImages;
   bool get isModelLoading => _isModelLoading;
   bool get isRunning => _isRunning;
@@ -43,7 +39,7 @@ class BenchmarkController extends ChangeNotifier {
 
   BenchmarkSummary get summary => BenchmarkSummary.fromResults(_results);
 
-  Future<void> selectModel(ModelType model) async {
+  Future<void> selectModel(ModelInfo model) async {
     _selectedModel = model;
     _results = [];
     _lastCsvPath = null;

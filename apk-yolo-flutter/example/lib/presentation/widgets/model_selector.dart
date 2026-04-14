@@ -2,8 +2,9 @@
 
 import 'package:flutter/material.dart';
 import '../../models/models.dart';
+import '../../services/model_registry.dart';
 
-/// A widget for selecting different YOLO model types
+/// A widget for selecting different YOLO models discovered at startup.
 class ModelSelector extends StatelessWidget {
   const ModelSelector({
     super.key,
@@ -12,12 +13,13 @@ class ModelSelector extends StatelessWidget {
     required this.onModelChanged,
   });
 
-  final ModelType selectedModel;
+  final ModelInfo selectedModel;
   final bool isModelLoading;
-  final ValueChanged<ModelType> onModelChanged;
+  final ValueChanged<ModelInfo> onModelChanged;
 
   @override
   Widget build(BuildContext context) {
+    final models = ModelRegistry.instance.all;
     return Container(
       height: 36,
       padding: const EdgeInsets.all(2),
@@ -27,7 +29,7 @@ class ModelSelector extends StatelessWidget {
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        children: ModelType.values.map((model) {
+        children: models.map((model) {
           final isSelected = selectedModel == model;
           return GestureDetector(
             onTap: () {
@@ -42,7 +44,7 @@ class ModelSelector extends StatelessWidget {
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
-                model.name.toUpperCase(),
+                model.label.toUpperCase(),
                 style: TextStyle(
                   color: isSelected ? Colors.black : Colors.white,
                   fontSize: 12,

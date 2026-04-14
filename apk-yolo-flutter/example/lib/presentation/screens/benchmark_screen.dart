@@ -104,13 +104,13 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
           children: [
             const Text('Modelo', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 8),
-            DropdownButtonFormField<ModelType>(
+            DropdownButtonFormField<ModelInfo>(
               initialValue: _controller.selectedModel,
               isExpanded: true,
               items: BenchmarkController.benchmarkModels.map((model) {
                 return DropdownMenuItem(
                   value: model,
-                  child: Text(model.modelName),
+                  child: Text(model.label),
                 );
               }).toList(),
               onChanged: _controller.isRunning
@@ -206,7 +206,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Resultados - ${_controller.selectedModel.modelName}',
+              'Resultados - ${_controller.selectedModel.label}',
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
             ),
             const Divider(),

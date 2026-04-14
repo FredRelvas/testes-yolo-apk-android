@@ -8,7 +8,7 @@ import 'package:ultralytics_yolo/yolo.dart';
 import 'package:ultralytics_yolo/utils/map_converter.dart';
 import 'package:ultralytics_yolo/utils/error_handler.dart';
 import '../../services/model_manager.dart';
-import '../../models/models.dart';
+import '../../services/model_registry.dart';
 
 /// A screen that demonstrates YOLO inference on a single image.
 ///
@@ -46,12 +46,12 @@ class _SingleImageScreenState extends State<SingleImageScreen> {
 
   /// Initializes the YOLO model for inference
   Future<void> _initializeYOLO() async {
-     // _modelPath = await _modelManager.getModelPath(ModelType.yolo11nFloat16);
-    _modelPath = await _modelManager.getModelPath(ModelType.detect);
+    final model = ModelRegistry.instance.defaultModel;
+    _modelPath = await _modelManager.getModelPath(model);
     if (_modelPath == null) return;
     _yolo = YOLO(
       modelPath: _modelPath!,
-      task: YOLOTask.detect,
+      task: model.task,
       useGpu: true,
     );
     try {
@@ -61,7 +61,7 @@ class _SingleImageScreenState extends State<SingleImageScreen> {
       if (mounted) {
         final error = YOLOErrorHandler.handleError(
           e,
-          'Failed to load model $_modelPath for task ${YOLOTask.detect.name}',
+          'Failed to load model $_modelPath for task ${model.task.name}',
         );
         _showSnackBar('Error loading model: ${error.message}');
       }
