@@ -386,7 +386,7 @@ class YOLOPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler
           val args = call.arguments as? Map<*, *>
           val originalPath = args?.get("modelPath") as? String ?: ""
           val modelPath = resolveModelPath(originalPath)
-          
+
           val checkResult = YOLOUtils.checkModelExistence(applicationContext, modelPath)
           result.success(checkResult)
         } catch (e: Exception) {
@@ -394,6 +394,34 @@ class YOLOPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler
         }
       }
       // END OF "checkModelExists" case
+
+      "listModels" -> {
+        try {
+          val assets = applicationContext.assets
+          val entries = assets.list("") ?: emptyArray()
+          val tfliteFiles = entries
+            .filter { it.endsWith(".tflite", ignoreCase = true) }
+            .sorted()
+
+          val manifest: String? = try {
+            assets.open("models.json").use { stream ->
+              stream.bufferedReader(Charsets.UTF_8).readText()
+            }
+          } catch (_: Exception) {
+            null
+          }
+
+          result.success(
+            mapOf(
+              "files" to tfliteFiles,
+              "manifest" to manifest
+            )
+          )
+        } catch (e: Exception) {
+          Log.e(TAG, "Failed to list models", e)
+          result.error("list_models_error", "Failed to list models: ${e.message}", null)
+        }
+      }
       
       "getStoragePaths" -> {
         try {

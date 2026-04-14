@@ -7,6 +7,7 @@ import '../../models/models.dart';
 import '../../models/benchmark_result.dart';
 import '../../services/model_manager.dart';
 import '../../services/model_registry.dart';
+import '../../config/app_config.dart';
 
 class BenchmarkController extends ChangeNotifier {
   /// Models discovered from assets and flagged for benchmarking.
@@ -62,7 +63,7 @@ class BenchmarkController extends ChangeNotifier {
         notifyListeners();
         return;
       }
-      _yolo = YOLO(modelPath: path, task: _selectedModel.task, useGpu: false);
+      _yolo = YOLO(modelPath: path, task: _selectedModel.task, useGpu: kUseGpu);
       await _yolo!.loadModel();
     } catch (e) {
       _errorMessage = 'Erro ao carregar modelo: $e';

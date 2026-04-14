@@ -1,0 +1,21 @@
+[
+  {
+    "file": "exp_yolo26m_epi_negative_float32.tflite",
+    "label": "EPI YOLO26m fp32",
+    "task": "detect",
+    "benchmark": true,
+    "default": true
+  },
+  {
+    "file": "modelcoco_float32.tflite",
+    "label": "COCO fp32",
+    "task": "detect",
+    "benchmark": true
+  },
+  {
+    "file": "modelcoco_float16.tflite",
+    "label": "COCO fp16",
+    "task": "detect",
+    "benchmark": true
+  }
+]

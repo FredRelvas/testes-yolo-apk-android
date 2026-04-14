@@ -9,6 +9,7 @@ import 'package:ultralytics_yolo/utils/map_converter.dart';
 import 'package:ultralytics_yolo/utils/error_handler.dart';
 import '../../services/model_manager.dart';
 import '../../services/model_registry.dart';
+import '../../config/app_config.dart';
 
 /// A screen that demonstrates YOLO inference on a single image.
 ///
@@ -52,7 +53,7 @@ class _SingleImageScreenState extends State<SingleImageScreen> {
     _yolo = YOLO(
       modelPath: _modelPath!,
       task: model.task,
-      useGpu: true,
+      useGpu: kUseGpu,
     );
     try {
       await _yolo.loadModel();

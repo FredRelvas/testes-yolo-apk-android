@@ -37,6 +37,27 @@ This example app demonstrates how to use the [Ultralytics YOLO Flutter plugin](h
    flutter run
    ```
 
+## ⚙️ Build Configuration
+
+### GPU Delegate (`USE_GPU`)
+
+By default the app runs inference on the **CPU** (`USE_GPU=false`). This is the safe default: it works on every device and every model.
+
+If your device supports it and you want faster inference, enable the GPU delegate at build/run time:
+
+```bash
+# CPU (default — works on all devices)
+flutter run
+
+# GPU — faster on compatible devices
+flutter run --dart-define=USE_GPU=true
+
+# Release APK with GPU enabled
+flutter build apk --dart-define=USE_GPU=true
+```
+
+> **Note:** Some models (e.g. COCO fp32 with 690+ GPU-delegated nodes) can cause an **out-of-memory** error when `USE_GPU=true` on devices with limited GPU memory. If inference fails or crashes with GPU enabled, run without the flag.
+
 ## 📋 Implementation Strategy
 
 This document outlines the step-by-step strategy for enhancing the example app to showcase all features of the [YOLO Flutter plugin](https://pub.dev/packages/ultralytics_yolo).

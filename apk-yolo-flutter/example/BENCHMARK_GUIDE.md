@@ -142,23 +142,19 @@ Copy-Item "C:\caminho\para\model_int8.tflite"    "android\app\src\main\assets\"
 
 ## 6. Registrar os modelos no código
 
-Abra `lib/models/models.dart` e adicione uma entrada no enum `ModelType` para cada modelo:
+**Nao precisa.** Qualquer `.tflite` em `android/app/src/main/assets/` e descoberto automaticamente na inicializacao do app (ver `ModelRegistry` em `lib/services/model_registry.dart`). Todos aparecem como `task=detect` por padrao.
 
-```dart
-enum ModelType {
-  detect('yolo11n', YOLOTask.detect),
-  // ... outros modelos padrão ...
-  customFloat32('model_float32', YOLOTask.detect),
-  customFloat16('model_float16', YOLOTask.detect),
-  customInt8('model_int8', YOLOTask.detect);
+Se quiser label amigavel, task diferente de `detect` ou marcar como default, edite `android/app/src/main/assets/models.json`:
 
-  final String modelName;
-  final YOLOTask task;
-  const ModelType(this.modelName, this.task);
-}
+```json
+[
+  {"file": "model_float32.tflite", "label": "Custom fp32", "task": "detect", "default": true},
+  {"file": "model_float16.tflite", "label": "Custom fp16"},
+  {"file": "model_int8.tflite",    "label": "Custom int8"}
+]
 ```
 
-> O `modelName` deve ser o nome do arquivo **sem a extensão** `.tflite`.
+Campos opcionais: `label`, `task`, `benchmark` (bool), `default` (bool). Ver [README.md](../../README.md) para a tabela completa.
 
 ---
 

@@ -14,6 +14,7 @@ import '../../models/benchmark_result.dart';
 import '../../models/models.dart';
 import '../../services/model_manager.dart';
 import '../../services/model_registry.dart';
+import '../../config/app_config.dart';
 import '../../utils/detection_eval_metrics.dart';
 import '../controllers/benchmark_controller.dart';
 
@@ -85,7 +86,7 @@ class _BatchInferenceScreenState extends State<BatchInferenceScreen> {
       _yolo = YOLO(
         modelPath: modelPath,
         task: _selectedModel.task,
-        useGpu: true,
+        useGpu: kUseGpu,
       );
       await _yolo!.loadModel();
 
