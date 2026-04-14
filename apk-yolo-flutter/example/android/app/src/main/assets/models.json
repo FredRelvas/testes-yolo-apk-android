@@ -17,5 +17,11 @@
     "label": "COCO fp16",
     "task": "detect",
     "benchmark": true
+  },
+  {
+    "file": "yolo11n_float16.tflite",
+    "label": "yolo11n fp16",
+    "task": "detect",
+    "benchmark": true
   }
 ]
