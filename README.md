@@ -43,6 +43,27 @@ Para filtrar logs indesejados no terminal (ex: spam de "Kumiho"):
 flutter run -d <DEVICE_ID> 2>&1 | grep -v -i "kumiho"
 ```
 
+### 4. Ativar aceleracao por GPU (opcional)
+
+Por padrao o app usa **CPU** para inferencia, o que funciona em todos os dispositivos. Para ativar o delegate de GPU e potencialmente aumentar a velocidade:
+
+```bash
+flutter run -d <DEVICE_ID> --dart-define=USE_GPU=true
+```
+
+| Modo | Comando | Quando usar |
+|------|---------|-------------|
+| CPU (padrao) | `flutter run` | Compativel com todos os dispositivos e modelos |
+| GPU | `flutter run --dart-define=USE_GPU=true` | Dispositivos com GPU compativel e modelos menores |
+
+> **Atencao:** Modelos grandes (ex: `modelcoco_float32.tflite` com 690 nos no GPU) podem causar erro de falta de memoria com GPU ativa em dispositivos mais simples. Se a inferencia falhar, rode sem o flag `USE_GPU`.
+
+Para gerar um APK de release com GPU ativa:
+
+```bash
+flutter build apk --dart-define=USE_GPU=true
+```
+
 Teclas uteis durante o `flutter run`:
 
 - `r` -- hot reload (aplica mudancas rapido)
