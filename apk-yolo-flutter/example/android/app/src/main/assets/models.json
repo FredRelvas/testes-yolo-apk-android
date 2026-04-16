@@ -7,14 +7,14 @@
     "default": true
   },
   {
-    "file": "modelcoco_float32.tflite",
-    "label": "COCO fp32",
+    "file": "yolo26n_float32.tflite",
+    "label": "yolo26n fp32",
     "task": "detect",
     "benchmark": true
   },
   {
-    "file": "modelcoco_float16.tflite",
-    "label": "COCO fp16",
+    "file": "yolo26n_float16.tflite",
+    "label": "yolo26n fp16",
     "task": "detect",
     "benchmark": true
   },
