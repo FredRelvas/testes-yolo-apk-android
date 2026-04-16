@@ -23,5 +23,11 @@
     "label": "yolo11n fp16",
     "task": "detect",
     "benchmark": true
+  },
+  {
+    "file": "yolo11n_float32.tflite",
+    "label": "yolo11n fp32",
+    "task": "detect",
+    "benchmark": true
   }
 ]
