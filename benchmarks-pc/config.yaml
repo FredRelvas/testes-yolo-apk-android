@@ -1,0 +1,133 @@
+# =============================================================================
+# benchmarks-pc — configuração (YAML)
+# =============================================================================
+# Dados de validação neste repo (ajuste se mudar de máquina):
+#
+#   COCO  →  dados-validacao/coco/
+#            • images/              imagens (nomes devem coincidir com "file_name" no JSON)
+#            • instances_val2017.json
+#
+#   EPI   →  dados-validacao/EPI/
+#            • images/   labels/   data.yaml (classes YOLO)
+#
+# Comandos típicos:
+#   infer-coco      → paths COCO abaixo + class_mapping_mode coco80 se for modelo COCO pré-treinado
+#   infer-yolo-gt   → paths YOLO EPI + dataset_yaml
+#
+# -----------------------------------------------------------------------------
+# eval-mobile / plots — o JSON da app são PREDIÇÕES; o DATASET é o ground truth
+# -----------------------------------------------------------------------------
+# O ficheiro (ou label) em mobile_pred_json / mobile_pred_files / manifesto só
+# indica QUAL EXPORT de predições avaliar. Não define COCO vs YOLO.
+#
+# Quem define o dataset de comparação é mobile_eval.gt_kind + estes paths:
+#
+#   gt_kind: coco  →  métricas vs annotations em JSON COCO
+#                    → obrigatório: paths.mobile_gt_coco_json
+#                    (plots: alternativa plots.gt_json_for_mobile_plots se quiseres
+#                     outro JSON COCO só para gráficos)
+#
+#   gt_kind: yolo  →  métricas vs imagens + labels .txt YOLO (ex.: dataset EPI)
+#                    → obrigatório: paths.mobile_gt_yolo_images + mobile_gt_yolo_labels
+#                    → classes: paths.dataset_yaml ou mobile_eval.yolo_class_names
+#
+# As predições têm de ser da MESMA galeria que o GT (nomes de ficheiro alinhados).
+# Ex.: predições sobre EPI → gt_kind: yolo + pastas EPI. Predições sobre COCO val
+#      → gt_kind: coco + instances_val2017.json (e imagens COCO no JSON).
+# -----------------------------------------------------------------------------
+#
+# Labels (atalhos):
+#   • model_for_infer_coco / model_for_infer_epi / model_for_inference → mesmo "label" que em
+#     apk-yolo-flutter/.../assets/models.json (ou caminho / nome .tflite em models_dir).
+#   • mobile_pred_json → mesmo "label" que em paths.mobile_predictions_json (ou caminho .json).
+#     Se mobile_predictions_json for null, usa-se predictions/mobile_predictions.example.json.
+# =============================================================================
+
+flutter_assets:
+  models_json: /home/beatriz/testes-yolo-apk-android/apk-yolo-flutter/example/android/app/src/main/assets/models.json
+  models_dir: /home/beatriz/testes-yolo-apk-android/apk-yolo-flutter/example/android/app/src/main/assets
+  use_manifest_labels_for_plots: false
+
+paths:
+  output_dir: ./benchmark_outputs
+
+  # --- convert (.pt → tflite, etc.) -----------------------------------------
+  model_to_convert: /caminho/para/modelo.pt
+
+  # --- infer-coco: benchmark no COCO val ------------------------------------
+  # Caminho completo, nome .tflite, ou label do models.json (ex.: "yolo11n fp16").
+  model_for_infer_coco: yolo11n fp16
+  # Fallback: manifest (default) ou caminho único para ambos os comandos.
+  model_for_inference: null
+  val_images_dir: /home/beatriz/testes-yolo-apk-android/dados-validacao/coco/images
+  coco_instances_json: /home/beatriz/testes-yolo-apk-android/dados-validacao/coco/instances_val2017.json
+  predictions_json: predictions_coco.json
+
+  # --- infer-yolo-gt: benchmark no dataset EPI (YOLO) -----------------------
+  # Caminho, ficheiro, ou label do models.json (ex.: "EPI YOLO26m fp32").
+  model_for_infer_epi: EPI YOLO26m fp32
+  yolo_val_images: /home/beatriz/testes-yolo-apk-android/dados-validacao/EPI/images
+  yolo_val_labels: /home/beatriz/testes-yolo-apk-android/dados-validacao/EPI/labels
+  dataset_yaml: /home/beatriz/testes-yolo-apk-android/dados-validacao/EPI/data.yaml
+
+  # --- eval-mobile: um JSON de predições da app ----------------------------
+  # Só escolhe QUAL export avaliar (caminho .json ou label do manifesto mobile_predictions_json).
+  mobile_pred_json: EPI val float32
+  # --- GT para eval-mobile / plots (qual destes é usado depende de mobile_eval.gt_kind) ---
+  # coco: JSON instâncias COCO (usado só se gt_kind: coco).
+  mobile_gt_coco_json: /home/beatriz/testes-yolo-apk-android/dados-validacao/coco/instances_val2017.json
+  # yolo: pastas do dataset YOLO (usadas só se gt_kind: yolo).
+  mobile_gt_yolo_images: /home/beatriz/testes-yolo-apk-android/dados-validacao/EPI/images
+  mobile_gt_yolo_labels: /home/beatriz/testes-yolo-apk-android/dados-validacao/EPI/labels
+
+  # --- plots: vários JSONs mobile -------------------------------------------
+  # Manifesto com todas as runs (path + label por entrada). Ver predictions/mobile_predictions.example.json
+  mobile_predictions_json: ./predictions/mobile_predictions.example.json
+  # Ignorado se definires plots.mobile_pred_labels ou mobile_predictions_json (estes preenchem a lista).
+  mobile_pred_files:
+    - /caminho/run_a.json
+    - /caminho/run_b.json
+  model_display_names:
+    - ModeloA
+    - ModeloB
+  graphs_output_dir: ./benchmark_outputs/graphs
+
+convert:
+  format: tflite
+  imgsz: 640
+  half: false
+  int8: false
+  int8_data_yaml: coco8.yaml
+
+inference:
+  imgsz: 640
+  conf: 0.001
+  iou_nms: 0.7
+  device: null
+  # infer-coco no COCO val com modelo 80 classes: use coco80. No EPI (infer-yolo-gt) não aplica.
+  class_mapping_mode: coco80
+  class_id_to_category_id: null
+  class_name_to_category_id: null
+  class_id_to_gt_class_id: null
+  class_name_to_gt_class_id: null
+
+mobile_eval:
+  class_name_aliases: {}
+  class_name_to_category_id: null
+  iou_thr_aux: 0.5
+  # Escolhe o DATASET de ground truth para eval-mobile e plots (não o formato do JSON da app).
+  # coco → evaluate_mobile_predictions + mobile_gt_coco_json (ou plots.gt_json_for_mobile_plots nos plots).
+  # yolo → evaluate_mobile_predictions_yolo + mobile_gt_yolo_* + dataset_yaml / yolo_class_names.
+  # Se omitires, o código assume coco.
+  gt_kind: yolo
+  yolo_class_names: null
+
+plots:
+  save: true
+  # Se gt_kind: coco, GT dos gráficos: usa mobile_gt_coco_json se isto for null; senão este JSON COCO.
+  gt_json_for_mobile_plots: null
+  # Opcional: só estas entradas do manifesto mobile_predictions_json entram nos gráficos (ordem das barras).
+  # Comentar ou deixar vazio para usar todas as runs do manifesto.
+  # mobile_pred_labels:
+  #   - EPI val float32
+  #   - EPI val float16
