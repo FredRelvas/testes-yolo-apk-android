@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "benchmarks-pc"
+version = "0.1.0"
+description = "Benchmarks no PC: conversão YOLO/TFLite, inferência, métricas COCO e gráficos (equivalente ao flutter_benchmarks.ipynb)."
+readme = "README.md"
+package-mode = true
+authors = []
+packages = [{ include = "benchmarks_pc", from = "src" }]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.14"
+ultralytics = ">=8.0.0"
+pycocotools = ">=2.0.6"
+tqdm = ">=4.65.0"
+PyYAML = ">=6.0"
+Pillow = ">=9.0.0"
+matplotlib = ">=3.7.0"
+numpy = ">=1.23.0"
+# Inferência no PC com pesos .tflite (Ultralytics usa tflite_runtime ou tensorflow).
+tensorflow = { version = ">=2.15.0,<3", optional = true }
+
+[tool.poetry.extras]
+tflite = ["tensorflow"]
+
+[tool.poetry.scripts]
+bench-pc = "benchmarks_pc.run:main"
+
+[build-system]
+requires = ["poetry-core>=2.0.0"]
+build-backend = "poetry.core.masonry.api"

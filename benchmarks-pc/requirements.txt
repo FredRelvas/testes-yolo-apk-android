@@ -1,0 +1,9 @@
+# Depois de pip install -r requirements.txt, instale o pacote em modo editável:
+#   pip install -e .
+ultralytics>=8.0.0
+pycocotools>=2.0.6
+tqdm>=4.65.0
+PyYAML>=6.0
+Pillow>=9.0.0
+matplotlib>=3.7.0
+numpy>=1.23.0

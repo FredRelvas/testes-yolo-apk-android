@@ -1,0 +1,4 @@
+benchmarks-pc/__pycache__/*
+benchmarks-pc/src/benchmarks_pc/*
+dados-validacao/*
+benchmark_outputs/*
