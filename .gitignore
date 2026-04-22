@@ -1,4 +1,10 @@
 benchmarks-pc/__pycache__/*
 benchmarks-pc/src/benchmarks_pc/*
-dados-validacao/*
-benchmark_outputs/*
+
+# Dados de validação (imagens/anotações grandes, não versionadas)
+dados-validacao/coco/
+dados-validacao/EPI/images/
+dados-validacao/EPI/labels/
+
+# Saídas dos benchmarks
+benchmarks-pc/benchmark_outputs/

@@ -44,8 +44,8 @@
 # =============================================================================
 
 flutter_assets:
-  models_json: /home/beatriz/testes-yolo-apk-android/apk-yolo-flutter/example/android/app/src/main/assets/models.json
-  models_dir: /home/beatriz/testes-yolo-apk-android/apk-yolo-flutter/example/android/app/src/main/assets
+  models_json: null  # usa o default: repo_root()/apk-yolo-flutter/.../assets/models.json
+  models_dir: null   # usa a pasta do models.json acima
   use_manifest_labels_for_plots: false
 
 paths:
@@ -59,26 +59,26 @@ paths:
   model_for_infer_coco: yolo11n fp16
   # Fallback: manifest (default) ou caminho único para ambos os comandos.
   model_for_inference: null
-  val_images_dir: /home/beatriz/testes-yolo-apk-android/dados-validacao/coco/images
-  coco_instances_json: /home/beatriz/testes-yolo-apk-android/dados-validacao/coco/instances_val2017.json
+  val_images_dir: ../dados-validacao/coco/images
+  coco_instances_json: ../dados-validacao/coco/instances_val2017.json
   predictions_json: predictions_coco.json
 
   # --- infer-yolo-gt: benchmark no dataset EPI (YOLO) -----------------------
   # Caminho, ficheiro, ou label do models.json (ex.: "EPI YOLO26m fp32").
   model_for_infer_epi: EPI YOLO26m fp32
-  yolo_val_images: /home/beatriz/testes-yolo-apk-android/dados-validacao/EPI/images
-  yolo_val_labels: /home/beatriz/testes-yolo-apk-android/dados-validacao/EPI/labels
-  dataset_yaml: /home/beatriz/testes-yolo-apk-android/dados-validacao/EPI/data.yaml
+  yolo_val_images: ../dados-validacao/EPI/images
+  yolo_val_labels: ../dados-validacao/EPI/labels
+  dataset_yaml: ../dados-validacao/EPI/data.yaml
 
   # --- eval-mobile: um JSON de predições da app ----------------------------
   # Só escolhe QUAL export avaliar (caminho .json ou label do manifesto mobile_predictions_json).
   mobile_pred_json: EPI val float32
   # --- GT para eval-mobile / plots (qual destes é usado depende de mobile_eval.gt_kind) ---
   # coco: JSON instâncias COCO (usado só se gt_kind: coco).
-  mobile_gt_coco_json: /home/beatriz/testes-yolo-apk-android/dados-validacao/coco/instances_val2017.json
+  mobile_gt_coco_json: ../dados-validacao/coco/instances_val2017.json
   # yolo: pastas do dataset YOLO (usadas só se gt_kind: yolo).
-  mobile_gt_yolo_images: /home/beatriz/testes-yolo-apk-android/dados-validacao/EPI/images
-  mobile_gt_yolo_labels: /home/beatriz/testes-yolo-apk-android/dados-validacao/EPI/labels
+  mobile_gt_yolo_images: ../dados-validacao/EPI/images
+  mobile_gt_yolo_labels: ../dados-validacao/EPI/labels
 
   # --- plots: vários JSONs mobile -------------------------------------------
   # Manifesto com todas as runs (path + label por entrada). Ver predictions/mobile_predictions.example.json
@@ -120,7 +120,17 @@ mobile_eval:
   # yolo → evaluate_mobile_predictions_yolo + mobile_gt_yolo_* + dataset_yaml / yolo_class_names.
   # Se omitires, o código assume coco.
   gt_kind: yolo
-  yolo_class_names: null
+  yolo_class_names:
+    0: Hardhat
+    1: Mask
+    2: NO-Hardhat
+    3: NO-Mask
+    4: NO-Safety Vest
+    5: Person
+    6: Safety Cone
+    7: Safety Vest
+    8: machinery
+    9: vehicle
 
 plots:
   save: true
