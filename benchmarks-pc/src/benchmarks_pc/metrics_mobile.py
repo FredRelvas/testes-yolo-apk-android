@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import math
+import statistics
 import shutil
 import tempfile
 from collections import defaultdict
@@ -13,6 +15,47 @@ import yaml
 from PIL import Image
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
+
+
+def _percentile(values: List[float], p: float) -> Optional[float]:
+    if not values:
+        return None
+    if p <= 0:
+        return float(min(values))
+    if p >= 100:
+        return float(max(values))
+    ordered = sorted(values)
+    pos = (len(ordered) - 1) * (p / 100.0)
+    low = int(math.floor(pos))
+    high = int(math.ceil(pos))
+    if low == high:
+        return float(ordered[low])
+    frac = pos - low
+    return float(ordered[low] + (ordered[high] - ordered[low]) * frac)
+
+
+def _build_timing_stats(inference_times: List[float]) -> Dict[str, Optional[float]]:
+    if not inference_times:
+        return {
+            "num_images_with_time": 0,
+            "avg_inference_time_ms": None,
+            "min_inference_time_ms": None,
+            "max_inference_time_ms": None,
+            "median_inference_time_ms": None,
+            "p95_inference_time_ms": None,
+            "p99_inference_time_ms": None,
+            "std_inference_time_ms": None,
+        }
+    return {
+        "num_images_with_time": len(inference_times),
+        "avg_inference_time_ms": float(sum(inference_times) / len(inference_times)),
+        "min_inference_time_ms": float(min(inference_times)),
+        "max_inference_time_ms": float(max(inference_times)),
+        "median_inference_time_ms": _percentile(inference_times, 50.0),
+        "p95_inference_time_ms": _percentile(inference_times, 95.0),
+        "p99_inference_time_ms": _percentile(inference_times, 99.0),
+        "std_inference_time_ms": float(statistics.pstdev(inference_times)),
+    }
 
 
 def evaluate_mobile_predictions(
@@ -330,12 +373,7 @@ def evaluate_mobile_predictions(
         t = item.get("inference_time_ms")
         if t is not None:
             inference_times.append(float(t))
-    timing = {
-        "num_images_with_time": len(inference_times),
-        "avg_inference_time_ms": sum(inference_times) / len(inference_times) if inference_times else None,
-        "min_inference_time_ms": min(inference_times) if inference_times else None,
-        "max_inference_time_ms": max(inference_times) if inference_times else None,
-    }
+    timing = _build_timing_stats(inference_times)
 
     return {
         "model": pred_data.get("model") if isinstance(pred_data, dict) else None,
@@ -717,12 +755,7 @@ def evaluate_mobile_predictions_yolo(
         t = item.get("inference_time_ms")
         if t is not None:
             inference_times.append(float(t))
-    timing = {
-        "num_images_with_time": len(inference_times),
-        "avg_inference_time_ms": sum(inference_times) / len(inference_times) if inference_times else None,
-        "min_inference_time_ms": min(inference_times) if inference_times else None,
-        "max_inference_time_ms": max(inference_times) if inference_times else None,
-    }
+    timing = _build_timing_stats(inference_times)
 
     return {
         "model": pred_data.get("model") if isinstance(pred_data, dict) else None,
