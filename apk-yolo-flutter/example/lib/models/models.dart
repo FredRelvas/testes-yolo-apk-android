@@ -2,6 +2,8 @@
 
 import 'package:ultralytics_yolo/models/yolo_task.dart';
 
+import 'infraction_rule.dart';
+
 /// Metadata describing a single TFLite model available to the app.
 ///
 /// Values are produced by [ModelRegistry] from the native asset listing
@@ -25,6 +27,14 @@ class ModelInfo {
   /// Whether this is the initial selection on app startup.
   final bool isDefault;
 
+  /// Lista ordenada de classes que o modelo retorna (index = classIndex).
+  /// `null` quando o manifest nao declara -- POC vai aprender em runtime.
+  final List<String>? classes;
+
+  /// Regras de infracao default declaradas no `models.json`.
+  /// Vazias quando o manifest nao declara.
+  final InfractionRuleSet defaultRules;
+
   const ModelInfo({
     required this.file,
     required this.name,
@@ -32,6 +42,8 @@ class ModelInfo {
     required this.task,
     required this.benchmark,
     required this.isDefault,
+    required this.classes,
+    required this.defaultRules,
   });
 
   /// Backward-compatible alias — older code used `modelName` as the name w/o extension.

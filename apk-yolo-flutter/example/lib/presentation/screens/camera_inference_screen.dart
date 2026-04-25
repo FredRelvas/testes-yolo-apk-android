@@ -1,23 +1,25 @@
 // Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
 import 'package:flutter/material.dart';
-import 'single_image_screen.dart';
-import 'batch_inference_screen.dart';
+import '../../models/infraction_rule.dart';
 import '../controllers/camera_inference_controller.dart';
 import '../widgets/camera_inference_content.dart';
 import '../widgets/camera_inference_overlay.dart';
 import '../widgets/camera_logo_overlay.dart';
 import '../widgets/camera_controls.dart';
+import '../widgets/infraction_config_sheet.dart';
 import '../widgets/threshold_slider.dart';
 
-/// A screen that demonstrates real-time YOLO inference using the device camera.
+/// Tela de teste em tempo real com camera e deteccao YOLO.
 ///
-/// This screen provides:
-/// - Live camera feed with YOLO object detection
-/// - Model selection (detect, segment, classify, pose, obb)
-/// - Adjustable thresholds (confidence, IoU, max detections)
-/// - Camera controls (flip, zoom)
-/// - Performance metrics (FPS)
+/// Recursos:
+/// - Camera ao vivo com bounding boxes coloridos (verde / vermelho)
+/// - Banner de infracao quando regras sao disparadas
+/// - Painel de metricas (FPS, ms, RAM, bateria)
+/// - Selecao de modelo (bundled ou .tflite do dispositivo)
+/// - Configuracao de regras de infracao via icone na AppBar
+/// - Thresholds ajustaveis (confidence, IoU, max detections)
+/// - Controles de camera (flip, zoom)
 class CameraInferenceScreen extends StatefulWidget {
   const CameraInferenceScreen({super.key});
 
@@ -71,26 +73,16 @@ class _CameraInferenceScreenState extends State<CameraInferenceScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('YOLO Camera Inference'),
+        title: const Text('Camera em tempo real'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.image),
-            tooltip: 'Imagem única',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const SingleImageScreen(),
-              ),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.photo_library),
-            tooltip: 'Dataset valid - Inferência em lote',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const BatchInferenceScreen(),
-              ),
+          ListenableBuilder(
+            listenable: _controller,
+            builder: (context, _) => IconButton(
+              icon: const Icon(Icons.rule),
+              tooltip: 'Configurar regras de infracao',
+              onPressed: _controller.isModelLoading
+                  ? null
+                  : () => _openRulesSheet(),
             ),
           ),
         ],
@@ -135,6 +127,23 @@ class _CameraInferenceScreenState extends State<CameraInferenceScreen> {
         },
       ),
     );
+  }
+
+  Future<void> _openRulesSheet() async {
+    final result = await showModalBottomSheet<InfractionRuleSet>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => InfractionConfigSheet(
+        model: _controller.selectedModel,
+        current: _controller.activeRules,
+      ),
+    );
+    if (result == null || !mounted) return;
+    if (result == _controller.selectedModel.defaultRules) {
+      await _controller.resetRulesToDefaults();
+    } else {
+      await _controller.applyRulesOverride(result);
+    }
   }
 
   void _showError(String title, String message) => showDialog(

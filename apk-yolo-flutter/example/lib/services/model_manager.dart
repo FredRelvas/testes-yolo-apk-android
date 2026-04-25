@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:ultralytics_yolo/utils/map_converter.dart';
 import 'package:ultralytics_yolo/config/channel_config.dart';
+import '../models/model_descriptor.dart';
 import '../models/models.dart';
 
 /// Manages YOLO model loading, downloading, and caching.
@@ -42,6 +43,24 @@ class ModelManager {
       : Platform.isAndroid
       ? _getAndroidModelPath(model)
       : null;
+
+  /// Resolve um [ModelDescriptor] em um caminho que o YOLOView aceita.
+  ///
+  /// Para `ModelSource.bundled`, delega para [getModelPath]. Para
+  /// `ModelSource.custom`, retorna o caminho absoluto direto (o
+  /// arquivo ja foi copiado para `getApplicationDocumentsDirectory()`
+  /// pelo `ModelPicker`).
+  Future<String?> getDescriptorPath(ModelDescriptor descriptor) async {
+    if (descriptor.source == ModelSource.custom) {
+      final file = File(descriptor.modelPath);
+      if (await file.exists()) return descriptor.modelPath;
+      _updateStatus('Arquivo nao encontrado: ${descriptor.modelPath}');
+      return null;
+    }
+    final bundled = descriptor.bundled;
+    if (bundled == null) return null;
+    return getModelPath(bundled);
+  }
 
   /// Gets the iOS model path (.mlpackage format).
   Future<String?> _getIOSModelPath(ModelInfo model) async {

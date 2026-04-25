@@ -16,27 +16,26 @@ import '../../services/model_manager.dart';
 import '../../services/model_registry.dart';
 import '../../config/app_config.dart';
 import '../../utils/detection_eval_metrics.dart';
-import '../controllers/benchmark_controller.dart';
 
 /// Inferência em lote no dataset valid com o modelo EPI customizado.
 ///
 /// 1. Copie a pasta valid para o celular (via USB para Download)
 /// 2. Toque em "Selecionar imagens" e navegue até a pasta
 /// 3. Selecione todas as imagens do dataset
-class BatchInferenceScreen extends StatefulWidget {
-  const BatchInferenceScreen({super.key});
+class StorageInferenceScreen extends StatefulWidget {
+  const StorageInferenceScreen({super.key});
 
   @override
-  State<BatchInferenceScreen> createState() => _BatchInferenceScreenState();
+  State<StorageInferenceScreen> createState() => _StorageInferenceScreenState();
 }
 
-class _BatchInferenceScreenState extends State<BatchInferenceScreen> {
+class _StorageInferenceScreenState extends State<StorageInferenceScreen> {
   final _modelManager = ModelManager();
   YOLO? _yolo;
   bool _isModelReady = false;
   bool _isModelLoading = false;
-  ModelInfo _selectedModel = BenchmarkController.benchmarkModels.isNotEmpty
-      ? BenchmarkController.benchmarkModels.first
+  ModelInfo _selectedModel = ModelRegistry.instance.benchmarkModels.isNotEmpty
+      ? ModelRegistry.instance.benchmarkModels.first
       : ModelRegistry.instance.defaultModel;
   String _status = 'Carregando modelo...';
   double _progress = 0.0;
@@ -631,7 +630,7 @@ class _BatchInferenceScreenState extends State<BatchInferenceScreen> {
                     DropdownButtonFormField<ModelInfo>(
                       initialValue: _selectedModel,
                       isExpanded: true,
-                      items: BenchmarkController.benchmarkModels.map((model) {
+                      items: ModelRegistry.instance.benchmarkModels.map((model) {
                         return DropdownMenuItem(
                           value: model,
                           child: Text(model.label),

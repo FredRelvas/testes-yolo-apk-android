@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:ultralytics_yolo/config/channel_config.dart';
 import 'package:ultralytics_yolo/models/yolo_task.dart';
 
+import '../models/infraction_rule.dart';
 import '../models/models.dart';
 
 /// Dynamically discovered list of TFLite models bundled with the app.
@@ -90,11 +91,20 @@ class ModelRegistry {
         if (item is! Map) continue;
         final file = item['file'];
         if (file is! String || file.isEmpty) continue;
+        final rawClasses = item['classes'];
+        final classes = rawClasses is List
+            ? rawClasses.whereType<String>().toList(growable: false)
+            : null;
+        final rawRules = item['defaultInfractionRules'];
         map[file] = _ManifestEntry(
           label: item['label'] as String?,
           task: _parseTask(item['task']),
           benchmark: item['benchmark'] as bool?,
           isDefault: item['default'] as bool?,
+          classes: classes,
+          defaultRules: rawRules is Map
+              ? Map<String, dynamic>.from(rawRules)
+              : null,
         );
       }
       return map;
@@ -135,6 +145,7 @@ class ModelRegistry {
     final name = file.toLowerCase().endsWith('.tflite')
         ? file.substring(0, file.length - '.tflite'.length)
         : file;
+    final modelKey = 'bundled:$file';
     return ModelInfo(
       file: file,
       name: name,
@@ -142,6 +153,9 @@ class ModelRegistry {
       task: entry?.task ?? YOLOTask.detect,
       benchmark: entry?.benchmark ?? true,
       isDefault: entry?.isDefault ?? false,
+      classes: entry?.classes,
+      defaultRules:
+          InfractionRuleSet.fromManifest(modelKey, entry?.defaultRules),
     );
   }
 }
@@ -151,11 +165,15 @@ class _ManifestEntry {
   final YOLOTask? task;
   final bool? benchmark;
   final bool? isDefault;
+  final List<String>? classes;
+  final Map<String, dynamic>? defaultRules;
 
   const _ManifestEntry({
     required this.label,
     required this.task,
     required this.benchmark,
     required this.isDefault,
+    required this.classes,
+    required this.defaultRules,
   });
 }

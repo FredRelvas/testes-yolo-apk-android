@@ -3,11 +3,14 @@
 import 'package:flutter/material.dart';
 import '../../models/models.dart';
 import '../controllers/camera_inference_controller.dart';
-import 'detection_stats_display.dart';
-import 'model_selector.dart';
+import 'infraction_alert_banner.dart';
+import 'metrics_panel.dart';
+import 'model_selector_chip.dart';
 import 'threshold_pill.dart';
 
-/// Top overlay widget containing model selector, stats, and threshold pills
+/// Overlay superior da tela de camera. Linha de cima: chip do modelo
+/// (esquerda) e painel de metricas (direita). Abaixo: banner de
+/// infracao (so visivel quando ha) + threshold pill ativo.
 class CameraInferenceOverlay extends StatelessWidget {
   const CameraInferenceOverlay({
     super.key,
@@ -20,23 +23,35 @@ class CameraInferenceOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final eval = controller.lastEvaluation;
     return Positioned(
       top: MediaQuery.of(context).padding.top + (isLandscape ? 8 : 16),
       left: isLandscape ? 8 : 16,
       right: isLandscape ? 8 : 16,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ModelSelector(
-            selectedModel: controller.selectedModel,
-            isModelLoading: controller.isModelLoading,
-            onModelChanged: controller.changeModel,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Flexible(
+                child: ModelSelectorChip(
+                  current: controller.selectedModel,
+                  isLoading: controller.isModelLoading,
+                  onSelected: controller.changeModel,
+                ),
+              ),
+              const Spacer(),
+              MetricsPanel(
+                fps: controller.currentFps,
+                processingTimeMs: controller.processingTimeMs,
+                detectionCount: controller.detectionCount,
+                metrics: controller.lastSystemMetrics,
+              ),
+            ],
           ),
           SizedBox(height: isLandscape ? 8 : 12),
-          DetectionStatsDisplay(
-            detectionCount: controller.detectionCount,
-            currentFps: controller.currentFps,
-          ),
+          InfractionAlertBanner(classes: eval.offendingClasses),
           const SizedBox(height: 8),
           _buildThresholdPills(),
         ],
