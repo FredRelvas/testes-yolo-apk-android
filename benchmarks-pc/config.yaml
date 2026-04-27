@@ -56,7 +56,7 @@ paths:
 
   # --- infer-coco: benchmark no COCO val ------------------------------------
   # Caminho completo, nome .tflite, ou label do models.json (ex.: "yolo11n fp16").
-  model_for_infer_coco: yolo11n fp16
+  model_for_infer_coco: yolo26n fp16
   # Fallback: manifest (default) ou caminho único para ambos os comandos.
   model_for_inference: null
   val_images_dir: ../dados-validacao/coco/images
@@ -82,14 +82,18 @@ paths:
 
   # --- plots: vários JSONs mobile -------------------------------------------
   # Manifesto com todas as runs (path + label por entrada). Ver predictions/mobile_predictions.example.json
-  mobile_predictions_json: ./predictions/mobile_predictions.example.json
+  mobile_predictions_json: null
   # Ignorado se definires plots.mobile_pred_labels ou mobile_predictions_json (estes preenchem a lista).
   mobile_pred_files:
-    - /caminho/run_a.json
-    - /caminho/run_b.json
+    # - ./predictions/COCO_val_yolo11n_float16.json
+    # - ./predictions/COCO_val_yolo11n_float32.json
+    # - ./predictions/COCO_val_yolo26n_float16.json
+    # - ./predictions/COCO_val_yolo26n_float32.json
+    - ./predictions/EPI_modelo_val_float16.json
+    - ./predictions/EPI_modelo_val_float32.json
   model_display_names:
-    - ModeloA
-    - ModeloB
+    - EPI YOLO26m fp16
+    - EPI YOLO26m fp32
   graphs_output_dir: ./benchmark_outputs/graphs
 
 convert:
@@ -134,6 +138,15 @@ mobile_eval:
 
 plots:
   save: true
+  # Se true, também roda inferência no PC por modelo. Gera gráficos mobile vs PC:
+  # mAP50 (ambos vs o mesmo GT de mobile_eval.gt_kind) e tempo de inferência.
+  include_pc_comparison: true
+  # Threshold usado só na inferência PC para comparação (evita milhões de detecções a conf muito baixa).
+  pc_comparison_conf: 0.25
+  # Limite de detecções por imagem na inferência PC de comparação.
+  pc_comparison_max_det: 100
+  # Opcional: limite de imagens avaliadas no PC (null = usa todas).
+  pc_comparison_max_images: null
   # Se gt_kind: coco, GT dos gráficos: usa mobile_gt_coco_json se isto for null; senão este JSON COCO.
   gt_json_for_mobile_plots: null
   # Opcional: só estas entradas do manifesto mobile_predictions_json entram nos gráficos (ordem das barras).

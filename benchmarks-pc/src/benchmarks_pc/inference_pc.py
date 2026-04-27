@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import json
+import math
+import re
+import statistics
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -128,6 +132,171 @@ def ensure_pc_backend_for_weights(model_path: Path) -> None:
             "Alternativa: em paths.model_for_infer_coco / model_for_infer_epi use um modelo .pt "
             "(recomendado no PC; reserve .tflite para a app Android)."
         ) from None
+
+
+def detect_tflite_input_hw(model_path: Path) -> Optional[Tuple[int, int]]:
+    """
+    Lê o tensor de entrada do .tflite e devolve (H, W) quando for estático.
+    Útil porque alguns exports fixam 512x512 (ou NCHW/NHWC) e o `imgsz` do YAML
+    pode estar em 640 — no PC isso pode degradar resultados ou falhar.
+    """
+    if model_path.suffix.lower() != ".tflite":
+        return None
+    ensure_pc_backend_for_weights(model_path)
+    try:
+        from tflite_runtime.interpreter import Interpreter  # type: ignore[import-untyped]
+
+        interpreter = Interpreter(model_path=str(model_path))
+    except ImportError:
+        import tensorflow as tf  # type: ignore[import-untyped]
+
+        interpreter = tf.lite.Interpreter(model_path=str(model_path))
+    interpreter.allocate_tensors()
+    details = interpreter.get_input_details()
+    if not details:
+        return None
+    shape = details[0].get("shape")
+    if shape is None:
+        return None
+    # shape pode ser np.ndarray ou list
+    try:
+        dims = [int(x) for x in list(shape)]
+    except Exception:
+        return None
+    if len(dims) < 3:
+        return None
+    # Heurística comum: NCHW (1,3,H,W) ou NHWC (1,H,W,3)
+    if dims[1] in (1, 3) and dims[-1] not in (1, 3):
+        h, w = dims[2], dims[3]
+    elif dims[-1] in (1, 3) and dims[1] not in (1, 3):
+        h, w = dims[1], dims[2]
+    else:
+        # fallback: tenta os dois últimos inteiros > 3
+        spatial = [d for d in dims if d > 3]
+        if len(spatial) >= 2:
+            h, w = spatial[-2], spatial[-1]
+        else:
+            return None
+    if h <= 0 or w <= 0:
+        return None
+    return h, w
+
+
+def resolve_effective_imgsz(model_path: Path, requested_imgsz: int) -> int:
+    """
+    Para TFLite com entrada espacial fixa, alinha `imgsz` ao H=W do tensor.
+    Para outros formatos, mantém o pedido.
+    """
+    hw = detect_tflite_input_hw(model_path)
+    if hw is None:
+        return int(requested_imgsz)
+    h, w = hw
+    if h != w:
+        print(f"Aviso: entrada TFLite não quadrada ({h}x{w}); usando max(H,W) como imgsz.")
+        aligned = max(h, w)
+    else:
+        aligned = h
+    if int(aligned) != int(requested_imgsz):
+        print(f"Aviso: ajustando imgsz de {requested_imgsz} -> {aligned} com base no tensor de entrada do TFLite.")
+    return int(aligned)
+
+
+def _extract_expected_imgsz_from_error(error: Exception) -> Optional[int]:
+    """
+    Tenta extrair o tamanho esperado pelo backend TFLite a partir da mensagem de erro.
+    Exemplo: "Got 640 but expected 512 for dimension 1 of input 0."
+    """
+    msg = str(error)
+    m = re.search(r"expected\s+(\d+)\s+for\s+dimension\s+1", msg)
+    if m:
+        return int(m.group(1))
+    m = re.search(r"dimension mismatch.*expected\s+(\d+)", msg, flags=re.IGNORECASE)
+    if m:
+        return int(m.group(1))
+    return None
+
+
+def _predict_with_imgsz_fallback(
+    model: YOLO,
+    image_path: Path,
+    imgsz: int,
+    conf_thres: float,
+    iou_nms: float,
+    device: Optional[str],
+    max_det: Optional[int] = None,
+) -> Tuple[Any, int]:
+    """
+    Executa inferência e, se houver mismatch de dimensão típico de TFLite, adapta
+    o `imgsz` automaticamente e repete a chamada.
+    """
+    def _predict_once(sz: int):
+        kwargs: Dict[str, Any] = {}
+        if max_det is not None:
+            kwargs["max_det"] = int(max_det)
+        return model.predict(
+            source=str(image_path),
+            imgsz=int(sz),
+            conf=conf_thres,
+            iou=iou_nms,
+            device=device,
+            verbose=False,
+            **kwargs,
+        )
+
+    try:
+        results = _predict_once(imgsz)
+        return results, imgsz
+    except Exception as e:
+        expected = _extract_expected_imgsz_from_error(e)
+        if expected is None or expected == imgsz:
+            raise
+        print(
+            f"Aviso: {image_path.name} falhou com imgsz={imgsz}. "
+            f"Modelo espera imgsz={expected}; repetindo inferência com fallback."
+        )
+        results = _predict_once(expected)
+        return results, int(expected)
+
+
+def _percentile(values: List[float], p: float) -> Optional[float]:
+    if not values:
+        return None
+    if p <= 0:
+        return float(min(values))
+    if p >= 100:
+        return float(max(values))
+    ordered = sorted(values)
+    pos = (len(ordered) - 1) * (p / 100.0)
+    low = int(math.floor(pos))
+    high = int(math.ceil(pos))
+    if low == high:
+        return float(ordered[low])
+    frac = pos - low
+    return float(ordered[low] + (ordered[high] - ordered[low]) * frac)
+
+
+def _build_timing_stats(inference_times_ms: List[float]) -> Dict[str, Optional[float]]:
+    if not inference_times_ms:
+        return {
+            "num_images_with_time": 0,
+            "avg_inference_time_ms": None,
+            "min_inference_time_ms": None,
+            "max_inference_time_ms": None,
+            "median_inference_time_ms": None,
+            "p95_inference_time_ms": None,
+            "p99_inference_time_ms": None,
+            "std_inference_time_ms": None,
+        }
+    return {
+        "num_images_with_time": len(inference_times_ms),
+        "avg_inference_time_ms": float(sum(inference_times_ms) / len(inference_times_ms)),
+        "min_inference_time_ms": float(min(inference_times_ms)),
+        "max_inference_time_ms": float(max(inference_times_ms)),
+        "median_inference_time_ms": _percentile(inference_times_ms, 50.0),
+        "p95_inference_time_ms": _percentile(inference_times_ms, 95.0),
+        "p99_inference_time_ms": _percentile(inference_times_ms, 99.0),
+        "std_inference_time_ms": float(statistics.pstdev(inference_times_ms)),
+    }
 
 
 def evaluate_coco(gt_json_path: str | Path, pred_json_path: str | Path) -> Tuple[Any, Dict[str, float]]:
@@ -258,25 +427,31 @@ def run_yolo_predictions_to_coco_json(
     conf_thres: float = 0.001,
     iou_nms: float = 0.7,
     device: Optional[str] = None,
-) -> List[dict]:
+    max_det: Optional[int] = None,
+) -> Tuple[List[dict], Dict[str, Optional[float]]]:
     filename_to_image_id = build_filename_to_image_id(coco_gt)
     predictions: List[dict] = []
     skipped_no_gt = 0
     skipped_unmapped_class = 0
+    inference_times_ms: List[float] = []
+    current_imgsz = imgsz
     for img_path in tqdm(image_paths, desc="Inferência"):
         file_name = img_path.name
         if file_name not in filename_to_image_id:
             skipped_no_gt += 1
             continue
         image_id = filename_to_image_id[file_name]
-        results = model.predict(
-            source=str(img_path),
-            imgsz=imgsz,
-            conf=conf_thres,
-            iou=iou_nms,
+        t0 = time.perf_counter()
+        results, current_imgsz = _predict_with_imgsz_fallback(
+            model=model,
+            image_path=img_path,
+            imgsz=current_imgsz,
+            conf_thres=conf_thres,
+            iou_nms=iou_nms,
             device=device,
-            verbose=False,
+            max_det=max_det,
         )
+        inference_times_ms.append((time.perf_counter() - t0) * 1000.0)
         r = results[0]
         boxes = r.boxes
         if boxes is None or len(boxes) == 0:
@@ -302,7 +477,8 @@ def run_yolo_predictions_to_coco_json(
     print(f"\nImagens sem GT correspondente pelo filename: {skipped_no_gt}")
     print(f"Detecções ignoradas por classe não mapeada: {skipped_unmapped_class}")
     print(f"Total de detecções válidas: {len(predictions)}")
-    return predictions
+    timing = _build_timing_stats(inference_times_ms)
+    return predictions, timing
 
 
 def run_yolo_predictions_coco80_mapping(
@@ -313,23 +489,29 @@ def run_yolo_predictions_coco80_mapping(
     conf_thres: float = 0.001,
     iou_nms: float = 0.7,
     device: Optional[str] = None,
-) -> List[dict]:
+    max_det: Optional[int] = None,
+) -> Tuple[List[dict], Dict[str, Optional[float]]]:
     """Para modelos treinados no conjunto COCO com 80 classes na ordem padrão YOLO."""
     filename_to_image_id = build_filename_to_image_id(coco_gt)
     predictions: List[dict] = []
+    inference_times_ms: List[float] = []
+    current_imgsz = imgsz
     for img_path in tqdm(image_paths, desc="Inferência (COCO80)"):
         file_name = img_path.name
         if file_name not in filename_to_image_id:
             continue
         image_id = filename_to_image_id[file_name]
-        results = model.predict(
-            source=str(img_path),
-            imgsz=imgsz,
-            conf=conf_thres,
-            iou=iou_nms,
+        t0 = time.perf_counter()
+        results, current_imgsz = _predict_with_imgsz_fallback(
+            model=model,
+            image_path=img_path,
+            imgsz=current_imgsz,
+            conf_thres=conf_thres,
+            iou_nms=iou_nms,
             device=device,
-            verbose=False,
+            max_det=max_det,
         )
+        inference_times_ms.append((time.perf_counter() - t0) * 1000.0)
         r = results[0]
         boxes = r.boxes
         if boxes is None or len(boxes) == 0:
@@ -353,7 +535,8 @@ def run_yolo_predictions_coco80_mapping(
                     "score": float(score),
                 }
             )
-    return predictions
+    timing = _build_timing_stats(inference_times_ms)
+    return predictions, timing
 
 
 def inference_and_evaluate_coco_gt(
@@ -365,6 +548,8 @@ def inference_and_evaluate_coco_gt(
     conf_thres: float = 0.001,
     iou_nms: float = 0.7,
     device: Optional[str] = None,
+    max_det: Optional[int] = None,
+    max_images: Optional[int] = None,
     class_id_to_category_id: Optional[Dict[int, int]] = None,
     class_name_to_category_id: Optional[Dict[str, int]] = None,
     class_mapping_mode: str = "auto",
@@ -381,6 +566,7 @@ def inference_and_evaluate_coco_gt(
     ensure_pc_backend_for_weights(model_path)
     print("Carregando modelo...")
     model = YOLO(str(model_path))
+    imgsz = resolve_effective_imgsz(model_path, int(imgsz))
     print("Carregando ground truth COCO...")
     coco_gt = COCO(str(ann_file))
 
@@ -404,10 +590,12 @@ def inference_and_evaluate_coco_gt(
         print(f"  {k} ({label}) -> {v}")
 
     image_paths = collect_image_paths(val_images_dir)
+    if max_images is not None:
+        image_paths = image_paths[: int(max_images)]
     print(f"\nTotal de imagens encontradas: {len(image_paths)}")
 
     if class_mapping_mode == "coco80":
-        predictions = run_yolo_predictions_coco80_mapping(
+        predictions, timing = run_yolo_predictions_coco80_mapping(
             model=model,
             image_paths=image_paths,
             coco_gt=coco_gt,
@@ -415,9 +603,10 @@ def inference_and_evaluate_coco_gt(
             conf_thres=conf_thres,
             iou_nms=iou_nms,
             device=device,
+            max_det=max_det,
         )
     else:
-        predictions = run_yolo_predictions_to_coco_json(
+        predictions, timing = run_yolo_predictions_to_coco_json(
             model=model,
             image_paths=image_paths,
             coco_gt=coco_gt,
@@ -426,6 +615,7 @@ def inference_and_evaluate_coco_gt(
             conf_thres=conf_thres,
             iou_nms=iou_nms,
             device=device,
+            max_det=max_det,
         )
 
     if len(predictions) == 0:
@@ -446,7 +636,14 @@ def inference_and_evaluate_coco_gt(
     print("\n=== Resumo ===")
     print(f"mAP_50 (proxy precisão): {metrics['mAP_50']:.6f}")
     print(f"AR_100 (proxy recall):   {metrics['AR_100']:.6f}")
-    return {"metrics": metrics, "predictions_path": str(out_predictions_json), "num_predictions": len(predictions)}
+    if timing.get("avg_inference_time_ms") is not None:
+        print(f"Tempo médio de inferência (ms): {timing['avg_inference_time_ms']:.3f}")
+    return {
+        "metrics": metrics,
+        "timing": timing,
+        "predictions_path": str(out_predictions_json),
+        "num_predictions": len(predictions),
+    }
 
 
 def evaluate_yolo_with_yolo_gt(
@@ -458,6 +655,8 @@ def evaluate_yolo_with_yolo_gt(
     conf_thres: float = 0.001,
     iou_nms: float = 0.7,
     device: Optional[str] = None,
+    max_det: Optional[int] = None,
+    max_images: Optional[int] = None,
     gt_class_names: Optional[List[str] | Dict[int, str]] = None,
     class_id_to_gt_class_id: Optional[Dict[int, int]] = None,
     class_name_to_gt_class_id: Optional[Dict[str, int]] = None,
@@ -547,9 +746,12 @@ def evaluate_yolo_with_yolo_gt(
     ensure_pc_backend_for_weights(Path(model_path))
     print("Carregando modelo...")
     model = YOLO(str(model_path))
+    imgsz = resolve_effective_imgsz(Path(model_path), int(imgsz))
 
     print("Convertendo GT YOLO -> COCO...")
     image_paths = collect_image_paths_local(images_dir)
+    if max_images is not None:
+        image_paths = image_paths[: int(max_images)]
     images: List[dict] = []
     annotations: List[dict] = []
     used_gt_classes = set()
@@ -613,19 +815,24 @@ def evaluate_yolo_with_yolo_gt(
 
     predictions: List[dict] = []
     skipped_unmapped_class = 0
+    inference_times_ms: List[float] = []
+    current_imgsz = imgsz
     for img_path in tqdm(image_paths, desc="Inferindo"):
         file_name = img_path.name
         if file_name not in filename_to_image_id:
             continue
         image_id = filename_to_image_id[file_name]
-        results = model.predict(
-            source=str(img_path),
-            imgsz=imgsz,
-            conf=conf_thres,
-            iou=iou_nms,
+        t0 = time.perf_counter()
+        results, current_imgsz = _predict_with_imgsz_fallback(
+            model=model,
+            image_path=img_path,
+            imgsz=current_imgsz,
+            conf_thres=conf_thres,
+            iou_nms=iou_nms,
             device=device,
-            verbose=False,
+            max_det=max_det,
         )
+        inference_times_ms.append((time.perf_counter() - t0) * 1000.0)
         r = results[0]
         boxes = r.boxes
         if boxes is None or len(boxes) == 0:
@@ -664,9 +871,13 @@ def evaluate_yolo_with_yolo_gt(
     print("\n=== Métricas COCO ===")
     for k, v in metrics.items():
         print(f"{k}: {v:.6f}")
+    timing = _build_timing_stats(inference_times_ms)
+    if timing.get("avg_inference_time_ms") is not None:
+        print(f"Tempo médio de inferência (ms): {timing['avg_inference_time_ms']:.3f}")
 
     return {
         "metrics": metrics,
+        "timing": timing,
         "gt_json_path": str(gt_json_path),
         "pred_json_path": str(pred_json_path),
         "class_mapping": class_mapping,
