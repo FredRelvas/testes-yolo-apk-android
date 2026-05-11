@@ -70,12 +70,26 @@ class _MetricsPanelState extends State<MetricsPanel> {
 
   Widget _buildExpanded() {
     final m = widget.metrics;
-    final ramText = '${widget.metrics?.processRamMb.toStringAsFixed(0) ?? '--'} MB';
+    final ramText =
+        '${widget.metrics?.processRamMb.toStringAsFixed(0) ?? '--'} MB';
     final totalRam = m?.deviceTotalRamMb;
     final ramFull = totalRam != null
         ? '$ramText / ${totalRam.toStringAsFixed(0)} MB'
         : ramText;
-    final batteryText = m?.batteryPercent != null ? '${m!.batteryPercent}%' : '--';
+    final batteryText =
+        m?.batteryPercent != null ? '${m!.batteryPercent}%' : '--';
+
+    final maNow = m?.currentMa;
+    final maAvg = m?.avgMaWindow;
+    final maText = maNow != null
+        ? '$maNow mA${maAvg != null ? ' (avg ${maAvg.toStringAsFixed(0)})' : ''}'
+        : '--';
+
+    final mah = m?.sessionMah ?? 0;
+    final sec = m?.sessionDurationSec ?? 0;
+    final sessionText = mah > 0
+        ? '${mah.toStringAsFixed(2)} mAh em ${_formatDuration(sec)}'
+        : '-- ${_formatDuration(sec)}';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -101,8 +115,20 @@ class _MetricsPanelState extends State<MetricsPanel> {
         _metricRow('Det', '${widget.detectionCount}'),
         _metricRow('RAM', ramFull),
         _metricRow('Bat', batteryText),
+        _metricRow('mA', maText),
+        _metricRow('Uso', sessionText),
       ],
     );
+  }
+
+  String _formatDuration(int seconds) {
+    if (seconds < 60) return '${seconds}s';
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    if (m < 60) return '${m}m${s.toString().padLeft(2, '0')}s';
+    final h = m ~/ 60;
+    final mm = m % 60;
+    return '${h}h${mm.toString().padLeft(2, '0')}m';
   }
 
   Widget _metricRow(String label, String value) {
@@ -112,7 +138,7 @@ class _MetricsPanelState extends State<MetricsPanel> {
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
-            width: 32,
+            width: 36,
             child: Text(label, style: _labelStyle),
           ),
           Text(value, style: _valueStyle),
