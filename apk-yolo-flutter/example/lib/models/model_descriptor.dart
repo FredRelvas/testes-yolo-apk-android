@@ -37,6 +37,10 @@ class ModelDescriptor {
   /// Regras default carregadas do manifest (bundled) ou vazias (custom).
   final InfractionRuleSet defaultRules;
 
+  /// Se `true`, carrega o modelo com aceleracao GPU. Vem do manifest
+  /// (bundled) ou da escolha do usuario no dialogo (custom).
+  final bool useGpu;
+
   const ModelDescriptor({
     required this.key,
     required this.label,
@@ -46,6 +50,7 @@ class ModelDescriptor {
     required this.bundled,
     required this.classes,
     required this.defaultRules,
+    required this.useGpu,
   });
 
   factory ModelDescriptor.fromBundled(ModelInfo info) {
@@ -59,6 +64,7 @@ class ModelDescriptor {
       bundled: info,
       classes: info.classes,
       defaultRules: info.defaultRules,
+      useGpu: info.useGpu,
     );
   }
 
@@ -67,6 +73,7 @@ class ModelDescriptor {
     required String label,
     YOLOTask task = YOLOTask.detect,
     List<String>? classes,
+    bool useGpu = true,
   }) {
     final key = 'custom:$absolutePath';
     return ModelDescriptor(
@@ -78,6 +85,7 @@ class ModelDescriptor {
       bundled: null,
       classes: classes,
       defaultRules: InfractionRuleSet.empty(key),
+      useGpu: useGpu,
     );
   }
 
@@ -93,6 +101,7 @@ class ModelDescriptor {
       bundled: bundled,
       classes: learned,
       defaultRules: defaultRules,
+      useGpu: useGpu,
     );
   }
 

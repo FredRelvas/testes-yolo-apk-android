@@ -157,9 +157,14 @@ class _ModelPickerSheetState extends State<_ModelPickerSheet> {
   }
 
   Future<void> _pickCustom() async {
+    // Pergunta o delegate antes de abrir o picker -- alguns modelos
+    // so funcionam em GPU, outros so em CPU.
+    final useGpu = await _askDelegate();
+    if (useGpu == null || !mounted) return;
+
     setState(() => _picking = true);
     try {
-      final descriptor = await ModelPicker.pickFromDevice();
+      final descriptor = await ModelPicker.pickFromDevice(useGpu: useGpu);
       if (!mounted) return;
       if (descriptor != null) {
         Navigator.pop(context, descriptor);
@@ -172,5 +177,33 @@ class _ModelPickerSheetState extends State<_ModelPickerSheet> {
     } finally {
       if (mounted) setState(() => _picking = false);
     }
+  }
+
+  Future<bool?> _askDelegate() {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Acelerador'),
+        content: const Text(
+          'Como o modelo deve ser executado?\n\n'
+          'GPU costuma ser mais rapido, mas alguns .tflite so '
+          'funcionam em CPU.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('CPU'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('GPU'),
+          ),
+        ],
+      ),
+    );
   }
 }

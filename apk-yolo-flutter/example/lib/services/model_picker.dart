@@ -20,7 +20,12 @@ class ModelPicker {
 
   /// Abre o file picker para `.tflite`. Retorna `null` se o usuario
   /// cancelar. Em caso de erro, propaga a excecao.
-  static Future<ModelDescriptor?> pickFromDevice() async {
+  ///
+  /// [useGpu] define qual delegate o modelo carregado vai usar. O
+  /// caller deve pedir essa escolha ao usuario antes de chamar.
+  static Future<ModelDescriptor?> pickFromDevice({
+    required bool useGpu,
+  }) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['tflite'],
@@ -40,6 +45,7 @@ class ModelPicker {
     return ModelDescriptor.fromCustomFile(
       absolutePath: destPath,
       label: label,
+      useGpu: useGpu,
     );
   }
 

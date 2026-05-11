@@ -28,11 +28,12 @@ class CameraInferenceContent extends StatelessWidget {
         children: [
           YOLOView(
             key: ValueKey(
-              'yolo_view_${controller.modelPath}_${controller.selectedModel.task.name}_$rebuildKey',
+              'yolo_view_${controller.modelPath}_${controller.selectedModel.task.name}_${controller.effectiveUseGpu}_$rebuildKey',
             ),
             controller: controller.yoloController,
             modelPath: controller.modelPath!,
             task: controller.selectedModel.task,
+            useGpu: controller.effectiveUseGpu,
             streamingConfig: const YOLOStreamingConfig.minimal(),
             showOverlays: false,
             onResult: controller.onDetectionResults,

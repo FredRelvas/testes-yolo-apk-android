@@ -35,6 +35,11 @@ class ModelInfo {
   /// Vazias quando o manifest nao declara.
   final InfractionRuleSet defaultRules;
 
+  /// Se `true`, carrega o modelo com aceleracao GPU (TFLite GPU delegate
+  /// no Android, Core ML GPU no iOS). Se `false`, usa CPU/NNAPI.
+  /// Default no manifest: `true`.
+  final bool useGpu;
+
   const ModelInfo({
     required this.file,
     required this.name,
@@ -44,6 +49,7 @@ class ModelInfo {
     required this.isDefault,
     required this.classes,
     required this.defaultRules,
+    required this.useGpu,
   });
 
   /// Backward-compatible alias — older code used `modelName` as the name w/o extension.

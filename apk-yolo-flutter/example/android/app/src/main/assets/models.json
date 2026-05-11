@@ -5,6 +5,7 @@
     "task": "detect",
     "benchmark": true,
     "default": true,
+    "useGpu": true,
     "classes": [
       "Hardhat",
       "Mask",
@@ -29,6 +30,7 @@
     "label": "EPI YOLO26m fp16",
     "task": "detect",
     "benchmark": true,
+    "useGpu": true,
     "classes": [
       "Hardhat",
       "Mask",
@@ -53,6 +55,7 @@
     "label": "yolo26n fp32 (COCO)",
     "task": "detect",
     "benchmark": true,
+    "useGpu": true,
     "classes": [
       "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train",
       "truck", "boat", "traffic light", "fire hydrant", "stop sign",
@@ -80,6 +83,7 @@
     "label": "yolo26n fp16 (COCO)",
     "task": "detect",
     "benchmark": true,
+    "useGpu": true,
     "classes": [
       "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train",
       "truck", "boat", "traffic light", "fire hydrant", "stop sign",
@@ -107,6 +111,7 @@
     "label": "yolo11n fp16 (COCO)",
     "task": "detect",
     "benchmark": true,
+    "useGpu": true,
     "classes": [
       "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train",
       "truck", "boat", "traffic light", "fire hydrant", "stop sign",
@@ -134,6 +139,7 @@
     "label": "yolo11n fp32 (COCO)",
     "task": "detect",
     "benchmark": true,
+    "useGpu": true,
     "classes": [
       "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train",
       "truck", "boat", "traffic light", "fire hydrant", "stop sign",

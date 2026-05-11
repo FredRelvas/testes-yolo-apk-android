@@ -105,6 +105,7 @@ class ModelRegistry {
           defaultRules: rawRules is Map
               ? Map<String, dynamic>.from(rawRules)
               : null,
+          useGpu: item['useGpu'] as bool?,
         );
       }
       return map;
@@ -156,6 +157,7 @@ class ModelRegistry {
       classes: entry?.classes,
       defaultRules:
           InfractionRuleSet.fromManifest(modelKey, entry?.defaultRules),
+      useGpu: entry?.useGpu ?? true,
     );
   }
 }
@@ -167,6 +169,7 @@ class _ManifestEntry {
   final bool? isDefault;
   final List<String>? classes;
   final Map<String, dynamic>? defaultRules;
+  final bool? useGpu;
 
   const _ManifestEntry({
     required this.label,
@@ -175,5 +178,6 @@ class _ManifestEntry {
     required this.isDefault,
     required this.classes,
     required this.defaultRules,
+    required this.useGpu,
   });
 }

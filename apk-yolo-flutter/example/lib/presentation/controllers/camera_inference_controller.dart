@@ -40,6 +40,12 @@ class CameraInferenceController extends ChangeNotifier {
   String _loadingMessage = '';
   double _downloadProgress = 0.0;
 
+  /// Override de runtime para `useGpu`. `null` significa "usar o valor
+  /// declarado no [ModelDescriptor]". Quando setado, sobrepoe a
+  /// declaracao do manifest (util para testar modelos que crasham
+  /// no modo padrao).
+  bool? _useGpuOverride;
+
   // ===== Camera state =====
   double _currentZoomLevel = 1.0;
   LensFacing _lensFacing = LensFacing.front;
@@ -83,6 +89,9 @@ class CameraInferenceController extends ChangeNotifier {
   InfractionRuleSet get activeRules => _activeRules;
   InfractionEvaluation get lastEvaluation => _lastEval;
   SystemMetrics? get lastSystemMetrics => _lastSystemMetrics;
+
+  /// Valor efetivo de `useGpu` aplicado ao modelo atual.
+  bool get effectiveUseGpu => _useGpuOverride ?? _selectedModel.useGpu;
 
   CameraInferenceController() {
     _isFrontCamera = _lensFacing == LensFacing.front;
@@ -242,6 +251,9 @@ class CameraInferenceController extends ChangeNotifier {
 
     if (!_isModelLoading && model != _selectedModel) {
       _selectedModel = model;
+      // Trocou de modelo: limpa override de delegate -- cada modelo
+      // tem sua preferencia declarada no manifest.
+      _useGpuOverride = null;
       _activeRules = _resolveRules(model);
       _infractionService.resetWindow();
       _infractionService.primeWindow(_activeRules.absenceClasses);
@@ -250,6 +262,21 @@ class CameraInferenceController extends ChangeNotifier {
       _detectionCount = 0;
       _loadModelForPlatform();
     }
+  }
+
+  /// Alterna entre GPU e CPU para o modelo atual. Forca o
+  /// `YOLOView` a reconstruir (via mudanca no `useGpu` que ja faz
+  /// parte da `ValueKey`).
+  void toggleUseGpu() {
+    if (_isDisposed || _isModelLoading) return;
+    final next = !effectiveUseGpu;
+    _useGpuOverride = next == _selectedModel.useGpu ? null : next;
+    _lastDetections = const [];
+    _detectionCount = 0;
+    _lastEval = InfractionEvaluation.empty;
+    _infractionService.resetWindow();
+    _infractionService.primeWindow(_activeRules.absenceClasses);
+    notifyListeners();
   }
 
   // ===== Infraction rule overrides =====

@@ -77,6 +77,35 @@ class _CameraInferenceScreenState extends State<CameraInferenceScreen> {
         actions: [
           ListenableBuilder(
             listenable: _controller,
+            builder: (context, _) {
+              final useGpu = _controller.effectiveUseGpu;
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: ActionChip(
+                  avatar: Icon(
+                    useGpu ? Icons.bolt : Icons.memory,
+                    size: 16,
+                    color: useGpu ? Colors.amber.shade700 : Colors.blueGrey,
+                  ),
+                  label: Text(
+                    useGpu ? 'GPU' : 'CPU',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
+                  tooltip: 'Alternar entre GPU/CPU para o modelo atual',
+                  onPressed: _controller.isModelLoading
+                      ? null
+                      : _controller.toggleUseGpu,
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              );
+            },
+          ),
+          ListenableBuilder(
+            listenable: _controller,
             builder: (context, _) => IconButton(
               icon: const Icon(Icons.rule),
               tooltip: 'Configurar regras de infracao',
