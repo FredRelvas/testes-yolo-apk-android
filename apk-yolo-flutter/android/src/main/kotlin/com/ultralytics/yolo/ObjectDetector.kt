@@ -68,8 +68,20 @@ class ObjectDetector(
         // If customOptions is provided, only add GPU delegate if requested
         if (useGpu) {
             try {
-                addDelegate(GpuDelegate())
-                Log.d("ObjectDetector", "GPU delegate is used.")
+                val gpuOpts = GpuDelegate.Options().apply {
+                    // Permite o GPU converter FP32 -> FP16 internamente.
+                    // Reduz precisao em ~1e-3 mas dobra a velocidade em
+                    // muitos casos. Sem isso, modelos FP32 ficam lentos.
+                    setPrecisionLossAllowed(true)
+                    // Prioriza throughput sustentado sobre latencia da
+                    // primeira inferencia (otimo para video em tempo real).
+                    setInferencePreference(
+                        GpuDelegate.Options.INFERENCE_PREFERENCE_SUSTAINED_SPEED
+                    )
+                }
+                addDelegate(GpuDelegate(gpuOpts))
+                Log.d("ObjectDetector",
+                    "GPU delegate: precisionLossAllowed=true, sustainedSpeed")
             } catch (e: Exception) {
                 Log.e("ObjectDetector", "GPU delegate error: ${e.message}")
             }
@@ -118,10 +130,12 @@ class ObjectDetector(
             }
         }
 
+        // Mudanca C: medir tempo de cold start do Interpreter.
+        val t0 = System.nanoTime()
         interpreter = Interpreter(modelBuffer, interpreterOptions)
         // Call allocateTensors() once during initialization, not in the inference loop
         interpreter.allocateTensors()
-        Log.d("TAG", "TFLite model loaded: $modelPath, tensors allocated")
+        val coldMs = (System.nanoTime() - t0) / 1_000_000
 
         // Check input shape (example: [1, inHeight, inWidth, 3])
         val inputShape = interpreter.getInputTensor(0).shape()
@@ -134,14 +148,41 @@ class ObjectDetector(
         }
         inputSize = Size(inWidth, inHeight) // Set variable in BasePredictor
         modelInputSize = Pair(inWidth, inHeight)
-        Log.d("TAG", "Model input size = $inWidth x $inHeight")
 
         // Output shape (varies by model, modify as needed)
         // Example: [1, 84, 2100] = [batch, outHeight, outWidth]
         val outputShape = interpreter.getOutputTensor(0).shape()
         out1 = outputShape[1] // 84
         out2 = outputShape[2] // 2100
-        Log.d("TAG", "Model output shape = [1, $out1, $out2]")
+
+        // Mudanca C: log abrangente do runtime efetivo.
+        // Dtype revela precisao real (FLOAT32 / FLOAT16 / UINT8 / INT8).
+        // Se o filename diz "_float32" mas o dtype eh UINT8, o modelo
+        // foi quantizado no export.
+        val inputDType = interpreter.getInputTensor(0).dataType()
+        val outputDType = interpreter.getOutputTensor(0).dataType()
+        val delegateLabel = if (useGpu) "GPU (precisionLossAllowed=true)"
+                            else "CPU XNNPACK + NNAPI"
+        Log.i(TAG, "============= YOLO MODEL =============")
+        Log.i(TAG, "  File:     $modelPath")
+        Log.i(TAG, "  Input:    shape=${inputShape.toList()} dtype=$inputDType")
+        Log.i(TAG, "  Output:   shape=${outputShape.toList()} dtype=$outputDType")
+        Log.i(TAG, "  Delegate: $delegateLabel")
+        Log.i(TAG, "  Threads:  ${Runtime.getRuntime().availableProcessors().coerceIn(1, 8)}")
+        Log.i(TAG, "  Cold start: $coldMs ms")
+        Log.i(TAG, "======================================")
+        // Aviso quando combinacao tende a ser sub-otima.
+        if (useGpu && (inputDType.toString() == "UINT8" || inputDType.toString() == "INT8")) {
+            Log.w(TAG, "Modelo quantizado (INT8/UINT8) rodando no GPU. " +
+                       "GPU delegate tem suporte limitado para INT8 - " +
+                       "ops nao suportados caem em CPU silenciosamente. " +
+                       "Considere alternar para CPU para este modelo.")
+        }
+        if (!useGpu && inputDType.toString() == "FLOAT16") {
+            Log.w(TAG, "Modelo FP16 rodando em CPU. XNNPACK desempacota " +
+                       "FP16 para FP32 internamente -- nao ha ganho de " +
+                       "performance vs o equivalente FP32. Para FP16, prefira GPU.")
+        }
 
         // Allocate preprocessing resources
         initPreprocessingResources(inWidth, inHeight)

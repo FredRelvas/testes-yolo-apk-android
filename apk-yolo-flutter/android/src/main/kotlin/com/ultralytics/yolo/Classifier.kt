@@ -40,8 +40,14 @@ class Classifier(
         // Add GPU delegate if requested
         if (useGpu) {
             try {
-                addDelegate(GpuDelegate())
-                Log.d(TAG, "GPU delegate is used.")
+                val gpuOpts = GpuDelegate.Options().apply {
+                    setPrecisionLossAllowed(true)
+                    setInferencePreference(
+                        GpuDelegate.Options.INFERENCE_PREFERENCE_SUSTAINED_SPEED
+                    )
+                }
+                addDelegate(GpuDelegate(gpuOpts))
+                Log.d(TAG, "GPU delegate: precisionLossAllowed=true, sustainedSpeed")
             } catch (e: Exception) {
                 Log.e(TAG, "GPU delegate error: ${e.message}")
             }
