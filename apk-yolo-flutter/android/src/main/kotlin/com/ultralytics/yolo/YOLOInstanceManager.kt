@@ -81,9 +81,16 @@ object YOLOInstanceManager {
         callback: (Result<Unit>) -> Unit
     ) {
         // If already loaded, dispose the old instance so we can load the new model
-        // (labels, modelPath, task, useGpu are captured at construction time)
+        // (labels, modelPath, task, useGpu are captured at construction time).
+        // Importante: chamar close() libera o Interpreter TFLite + delegates GPU/NNAPI,
+        // que sao recursos nativos -- sem isso, ficam vivos ate o GC pegar.
         if (instances[instanceId] != null) {
             Log.d(TAG, "Replacing existing model for instance: $instanceId")
+            try {
+                instances[instanceId]?.close()
+            } catch (e: Exception) {
+                Log.w(TAG, "Error closing previous instance: ${e.message}")
+            }
             instances.remove(instanceId)
             instanceOptions.remove(instanceId)
         }
@@ -167,13 +174,14 @@ object YOLOInstanceManager {
     }
 
     /**
-     * Disposes a specific instance
+     * Disposes a specific instance and releases all native resources
+     * (Interpreter TFLite + GPU/NNAPI delegates).
      */
     fun dispose(instanceId: String) {
         instances[instanceId]?.let { yolo ->
             try {
-                // YOLO class doesn't have a close() method, just remove from map
                 Log.d(TAG, "Disposing instance: $instanceId")
+                yolo.close()
             } catch (e: Exception) {
                 Log.e(TAG, "Error disposing instance $instanceId: ${e.message}")
             }

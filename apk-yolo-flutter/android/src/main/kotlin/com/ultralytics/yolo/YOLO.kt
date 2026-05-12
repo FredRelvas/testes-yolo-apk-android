@@ -64,7 +64,7 @@ class YOLO(
         }
     }
 
-    private val predictor: Predictor by lazy {
+    private val predictorLazy: Lazy<Predictor> = lazy {
         val options = createCustomOptions()
         when (task) {
             YOLOTask.DETECT -> ObjectDetector(context, modelPath, labels, useGpu, numItemsThreshold = numItemsThreshold, customOptions = options)
@@ -74,12 +74,30 @@ class YOLO(
             YOLOTask.OBB -> ObbDetector(context, modelPath, labels, useGpu, numItemsThreshold = numItemsThreshold, customOptions = options)
         }
     }
+    private val predictor: Predictor by predictorLazy
 
     /**
      * This method is used to directly instantiate the predictor to avoid lazy invocation.
      */
     fun predictorInstance(): Predictor {
         return predictor
+    }
+
+    /**
+     * Libera todos os recursos nativos do predictor (Interpreter TFLite
+     * + GPU/NNAPI delegates). Idempotente. Apos chamado, esta instancia
+     * de YOLO nao pode mais ser usada para inferencia.
+     *
+     * Se o predictor ainda nao foi inicializado (lazy), nao faz nada --
+     * evita instanciar o modelo so para fecha-lo.
+     */
+    fun close() {
+        if (!predictorLazy.isInitialized()) {
+            Log.d(TAG, "close(): predictor never initialized, nothing to release.")
+            return
+        }
+        (predictorLazy.value as? BasePredictor)?.close()
+            ?: Log.w(TAG, "close(): predictor is not a BasePredictor; cannot release.")
     }
 
     /**

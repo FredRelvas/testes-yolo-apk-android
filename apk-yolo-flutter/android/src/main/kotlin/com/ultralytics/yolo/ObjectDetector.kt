@@ -79,7 +79,9 @@ class ObjectDetector(
                         GpuDelegate.Options.INFERENCE_PREFERENCE_SUSTAINED_SPEED
                     )
                 }
-                addDelegate(GpuDelegate(gpuOpts))
+                val delegate = GpuDelegate(gpuOpts)
+                this@ObjectDetector.gpuDelegate = delegate
+                addDelegate(delegate)
                 Log.d("ObjectDetector",
                     "GPU delegate: precisionLossAllowed=true, sustainedSpeed")
             } catch (e: Exception) {
@@ -88,7 +90,9 @@ class ObjectDetector(
         } else {
             // GPU desligado: tenta NNAPI (NPU/DSP em muitos telemóveis) — pode falhar em alguns dispositivos
             try {
-                addDelegate(NnApiDelegate())
+                val delegate = NnApiDelegate()
+                this@ObjectDetector.nnApiDelegate = delegate
+                addDelegate(delegate)
                 Log.d("ObjectDetector", "NNAPI delegate is used (useGpu=false).")
             } catch (e: Exception) {
                 Log.e("ObjectDetector", "NNAPI delegate error: ${e.message}")

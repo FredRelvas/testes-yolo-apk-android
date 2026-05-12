@@ -100,7 +100,9 @@ class PoseEstimator(
                         GpuDelegate.Options.INFERENCE_PREFERENCE_SUSTAINED_SPEED
                     )
                 }
-                addDelegate(GpuDelegate(gpuOpts))
+                val delegate = GpuDelegate(gpuOpts)
+                this@PoseEstimator.gpuDelegate = delegate
+                addDelegate(delegate)
                 Log.d("PoseEstimator", "GPU delegate: precisionLossAllowed=true, sustainedSpeed")
             } catch (e: Exception) {
                 Log.e("PoseEstimator", "GPU delegate error: ${e.message}")

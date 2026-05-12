@@ -5,6 +5,7 @@ import '../../models/model_descriptor.dart';
 import '../../services/infraction_rules_storage.dart';
 import '../../services/model_registry.dart';
 import '../widgets/infraction_config_sheet.dart';
+import 'benchmark_screen.dart';
 import 'camera_inference_screen.dart';
 import 'storage_inference_screen.dart';
 
@@ -66,6 +67,13 @@ class MenuScreen extends StatelessWidget {
                 icon: Icons.photo_library,
                 label: 'Inferencia em armazenamento',
                 screen: const StorageInferenceScreen(),
+              ),
+              const SizedBox(height: 16),
+              _navButton(
+                context,
+                icon: Icons.speed,
+                label: 'Benchmark de modelos',
+                screen: const BenchmarkScreen(),
               ),
               const SizedBox(height: 16),
               SizedBox(

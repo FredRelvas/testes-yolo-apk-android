@@ -50,7 +50,9 @@ class ObbDetector(
                         GpuDelegate.Options.INFERENCE_PREFERENCE_SUSTAINED_SPEED
                     )
                 }
-                addDelegate(GpuDelegate(gpuOpts))
+                val delegate = GpuDelegate(gpuOpts)
+                this@ObbDetector.gpuDelegate = delegate
+                addDelegate(delegate)
                 Log.d("ObbDetector", "GPU delegate: precisionLossAllowed=true, sustainedSpeed")
             } catch (e: Exception) {
                 Log.e("ObbDetector", "GPU delegate error: ${e.message}")

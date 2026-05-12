@@ -46,7 +46,9 @@ class Classifier(
                         GpuDelegate.Options.INFERENCE_PREFERENCE_SUSTAINED_SPEED
                     )
                 }
-                addDelegate(GpuDelegate(gpuOpts))
+                val delegate = GpuDelegate(gpuOpts)
+                this@Classifier.gpuDelegate = delegate
+                addDelegate(delegate)
                 Log.d(TAG, "GPU delegate: precisionLossAllowed=true, sustainedSpeed")
             } catch (e: Exception) {
                 Log.e(TAG, "GPU delegate error: ${e.message}")

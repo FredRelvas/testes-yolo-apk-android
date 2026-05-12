@@ -3,7 +3,10 @@
 package com.ultralytics.yolo
 
 import android.graphics.Bitmap
+import android.util.Log
 import org.tensorflow.lite.Interpreter
+import org.tensorflow.lite.gpu.GpuDelegate
+import org.tensorflow.lite.nnapi.NnApiDelegate
 import android.graphics.Matrix;
 
 interface Predictor {
@@ -37,6 +40,19 @@ abstract class BasePredictor : Predictor {
     protected lateinit var modelInputSize: Pair<Int, Int>
     protected fun isInterpreterInitialized() = this::interpreter.isInitialized
 
+    /**
+     * Referencias aos delegates ativos. Precisam ser fechados
+     * explicitamente em [close], senao a memoria nativa (GPU buffers,
+     * shaders compilados, NPU/DSP handles) so e liberada quando o
+     * GC do Java pega -- o que pode demorar minutos ja que o GC nao
+     * detecta pressao de memoria nativa.
+     */
+    protected var gpuDelegate: GpuDelegate? = null
+    protected var nnApiDelegate: NnApiDelegate? = null
+
+    @Volatile
+    private var closed: Boolean = false
+
     protected var t0: Long = 0L
     protected var t2: Double = 0.0
     protected var t3: Long = System.nanoTime()
@@ -48,10 +64,35 @@ abstract class BasePredictor : Predictor {
     var pendingBitmapFrame: Bitmap? = null
     var isFrontCamera: Boolean = false
 
+    /**
+     * Libera todos os recursos nativos: Interpreter TFLite + delegates.
+     *
+     * Idempotente -- pode ser chamado varias vezes sem efeito colateral.
+     * Apos a chamada, este predictor nao pode mais ser usado.
+     */
     fun close() {
-        if (isInterpreterInitialized()) {
-            interpreter.close()
+        if (closed) return
+        closed = true
+        try {
+            gpuDelegate?.close()
+        } catch (e: Exception) {
+            Log.w("BasePredictor", "Error closing GPU delegate: ${e.message}")
         }
+        gpuDelegate = null
+        try {
+            nnApiDelegate?.close()
+        } catch (e: Exception) {
+            Log.w("BasePredictor", "Error closing NNAPI delegate: ${e.message}")
+        }
+        nnApiDelegate = null
+        if (isInterpreterInitialized()) {
+            try {
+                interpreter.close()
+            } catch (e: Exception) {
+                Log.w("BasePredictor", "Error closing interpreter: ${e.message}")
+            }
+        }
+        Log.i("BasePredictor", "Predictor closed and native resources released.")
     }
 
     protected fun updateTiming() {
