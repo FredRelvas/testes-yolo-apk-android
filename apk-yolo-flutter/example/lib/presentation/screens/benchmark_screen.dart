@@ -1,10 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:ultralytics_yolo/yolo.dart';
@@ -92,34 +91,16 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
   }
 
   // ===========================================================
-  // Synthetic bitmap (640x640 PNG, gerado uma unica vez)
+  // Imagem de teste (640x640 PNG bundlado)
+  //
+  // Bundlada em `assets/benchmark_test_image.png` para garantir
+  // que TODA execucao do benchmark use exatamente a mesma imagem
+  // (bit a bit) em qualquer dispositivo ou versao do Flutter.
+  // Ver docs/BENCHMARK.md para detalhes da composicao.
   // ===========================================================
-  Future<Uint8List> _generateSyntheticBitmap() async {
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder, const Rect.fromLTWH(0, 0, 640, 640));
-    canvas.drawRect(
-      const Rect.fromLTWH(0, 0, 640, 640),
-      Paint()..color = const Color(0xFF808080),
-    );
-    // Formas com contraste para o modelo nao ficar com input uniforme.
-    canvas.drawCircle(
-      const Offset(320, 320),
-      150,
-      Paint()..color = const Color(0xFFCCCCCC),
-    );
-    canvas.drawRect(
-      const Rect.fromLTWH(100, 100, 150, 150),
-      Paint()..color = const Color(0xFF404040),
-    );
-    canvas.drawRect(
-      const Rect.fromLTWH(420, 420, 120, 120),
-      Paint()..color = const Color(0xFFE8E8E8),
-    );
-    final picture = recorder.endRecording();
-    final image = await picture.toImage(640, 640);
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    image.dispose();
-    return byteData!.buffer.asUint8List();
+  Future<Uint8List> _loadTestBitmap() async {
+    final data = await rootBundle.load('assets/benchmark_test_image.png');
+    return data.buffer.asUint8List();
   }
 
   // ===========================================================
@@ -181,7 +162,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen> {
       setState(() => _liveFps = fps);
     });
 
-    _syntheticBytes ??= await _generateSyntheticBitmap();
+    _syntheticBytes ??= await _loadTestBitmap();
 
     try {
       for (var i = 0; i < runs.length; i++) {
