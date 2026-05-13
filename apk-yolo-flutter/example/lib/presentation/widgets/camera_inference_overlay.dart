@@ -41,6 +41,7 @@ class CameraInferenceOverlay extends StatelessWidget {
                   onSelected: controller.changeModel,
                 ),
               ),
+              _SessionRecordControl(controller: controller),
               const Spacer(),
               MetricsPanel(
                 fps: controller.currentFps,
@@ -73,5 +74,81 @@ class CameraInferenceOverlay extends StatelessWidget {
       return ThresholdPill(label: 'ITEMS MAX: ${controller.numItemsThreshold}');
     }
     return const SizedBox.shrink();
+  }
+}
+
+/// Inicia / para gravacao de video MP4 (`Movies/POC_EPI/` no Android).
+class _SessionRecordControl extends StatelessWidget {
+  const _SessionRecordControl({required this.controller});
+
+  final CameraInferenceController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final rec = controller.isSessionRecording;
+        return Padding(
+          padding: const EdgeInsets.only(left: 8),
+          child: Material(
+            color: Colors.black45,
+            borderRadius: BorderRadius.circular(20),
+            child: InkWell(
+              onTap: controller.isModelLoading
+                  ? null
+                  : () => _toggle(context),
+              borderRadius: BorderRadius.circular(20),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      rec ? Icons.stop_circle : Icons.fiber_manual_record,
+                      color: rec ? Colors.white : Colors.redAccent,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      rec ? 'Parar' : 'Gravar',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _toggle(BuildContext context) async {
+    if (controller.isSessionRecording) {
+      final videoPath = await controller.stopSessionRecording();
+      if (!context.mounted) return;
+      final msg = videoPath != null && videoPath.isNotEmpty
+          ? 'Gravação terminada.\nVídeo: $videoPath'
+          : 'Gravação terminada.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      return;
+    }
+    await controller.startSessionRecording();
+    if (!context.mounted) return;
+    final video = controller.sessionVideoTargetPath;
+    final msg = video != null && video.isNotEmpty
+        ? 'A gravar vídeo MP4.\n$video'
+        : 'Não foi possível iniciar o vídeo neste dispositivo.';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        duration: const Duration(seconds: 5),
+      ),
+    );
   }
 }

@@ -30,6 +30,9 @@ class EpiOverlay extends StatelessWidget {
 
   static String _keyOf(YOLOResult r) =>
       '${r.className}_${r.normalizedBox.left.toStringAsFixed(4)}_${r.normalizedBox.top.toStringAsFixed(4)}';
+
+  /// Mesma chave que a overlay e o gravador nativo usam para verde/vermelho.
+  static String boxKeyForRecording(YOLOResult r) => _keyOf(r);
 }
 
 class _EpiBoxPainter extends CustomPainter {
@@ -54,7 +57,7 @@ class _EpiBoxPainter extends CustomPainter {
     final fillPaint = Paint()..style = PaintingStyle.fill;
 
     for (final d in detections) {
-      final isRed = redKeys.contains(EpiOverlay._keyOf(d));
+      final isRed = redKeys.contains(EpiOverlay.boxKeyForRecording(d));
       final box = d.normalizedBox;
       final rect = Rect.fromLTRB(
         box.left * size.width,

@@ -3,6 +3,8 @@
 package com.ultralytics.yolo
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.View
 import androidx.core.content.ContextCompat
@@ -11,7 +13,10 @@ import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.platform.PlatformView
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * YOLOPlatformView - Native view bridge from Flutter
@@ -48,6 +53,8 @@ class YOLOPlatformView(
     // Retry handler for reconnection
     private val retryHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var retryRunnable: Runnable? = null
+
+    private val recordingKeysMainHandler = Handler(Looper.getMainLooper())
     
     init {
         Log.d(TAG, "YOLOPlatformView[$viewId] INIT BLOCK STARTING")
@@ -183,10 +190,108 @@ class YOLOPlatformView(
         yoloView.setStreamCallback { streamData ->
             sendStreamDataWithRetry(streamData)
         }
-        
+
+        yoloView.setRecordingRedKeysResolver { result ->
+            resolveRecordingRedKeysFromFlutter(result)
+        }
+
         Log.d(TAG, "YOLOView streaming configured with setState resilience")
     }
-    
+
+    /**
+     * Pede ao Dart as chaves vermelhas para este [YOLOResult], na mesma ordem temporal
+     * que a overlay (evita um frame verde antes do push assincrono de chaves).
+     * Invoca o MethodChannel na main thread; faz uniao com o snapshot nativo para
+     * reduzir piscar verde em timeout ou diferencas de arredondamento.
+     */
+    @Synchronized
+    private fun resolveRecordingRedKeysFromFlutter(result: YOLOResult): Set<String> {
+        val ch = methodChannel ?: return yoloView.snapshotRecordingInfractionKeys()
+        val payload = try {
+            yoloView.convertResultToStreamData(result)
+        } catch (e: Exception) {
+            Log.e(TAG, "convertResultToStreamData for recording keys", e)
+            return yoloView.snapshotRecordingInfractionKeys()
+        }
+        if (payload.isEmpty()) return yoloView.snapshotRecordingInfractionKeys()
+
+        val snapshot = yoloView.snapshotRecordingInfractionKeys()
+        val latch = CountDownLatch(1)
+        val completed = AtomicBoolean(false)
+        val resolvedFromDart = AtomicReference<Set<String>?>(null)
+
+        val invokeRunnable = Runnable {
+            try {
+                ch.invokeMethod(
+                    "resolveRecordingRedKeys",
+                    payload,
+                    object : MethodChannel.Result {
+                        override fun success(r: Any?) {
+                            if (r == null) {
+                                resolvedFromDart.set(null)
+                                completed.set(true)
+                                latch.countDown()
+                                return
+                            }
+                            val list = r as? List<*>
+                            val res =
+                                list?.mapNotNull { it as? String }?.toSet() ?: emptySet()
+                            resolvedFromDart.set(res)
+                            completed.set(true)
+                            latch.countDown()
+                        }
+
+                        override fun error(
+                            errorCode: String,
+                            errorMessage: String?,
+                            errorDetails: Any?
+                        ) {
+                            Log.w(TAG, "resolveRecordingRedKeys: $errorMessage")
+                            completed.set(true)
+                            latch.countDown()
+                        }
+
+                        override fun notImplemented() {
+                            completed.set(true)
+                            latch.countDown()
+                        }
+                    }
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "resolveRecordingRedKeys invokeMethod", e)
+                completed.set(true)
+                latch.countDown()
+            }
+        }
+
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            invokeRunnable.run()
+        } else {
+            recordingKeysMainHandler.post(invokeRunnable)
+        }
+
+        val timedOut = !latch.await(150, TimeUnit.MILLISECONDS)
+        if (timedOut) {
+            Log.w(TAG, "resolveRecordingRedKeys: timeout, unindo snapshot e resultado parcial")
+        }
+
+        if (timedOut || !completed.get()) {
+            val partial = resolvedFromDart.get()
+            return LinkedHashSet<String>().apply {
+                addAll(snapshot)
+                if (partial != null) addAll(partial)
+            }
+        }
+
+        val res = resolvedFromDart.get()
+        if (res == null) return snapshot
+        if (res.isEmpty()) return emptySet()
+        return LinkedHashSet<String>().apply {
+            addAll(res)
+            addAll(snapshot)
+        }
+    }
+
     /**
      * Send stream data with automatic retry on failure
      */
@@ -444,6 +549,31 @@ class YOLOPlatformView(
                         result.error("capture_failed", "Failed to capture frame", null)
                     }
                 }
+                "startVideoRecording" -> {
+                    val path = yoloView.startVideoRecording()
+                    if (path != null) {
+                        Log.d(TAG, "Video recording started: $path")
+                        result.success(path)
+                    } else {
+                        result.error(
+                            "video_unavailable",
+                            "Could not start annotated video (storage error or encoder failure)",
+                            null
+                        )
+                    }
+                }
+                "setRecordingInfractionRedKeys" -> {
+                    val keys = call.argument<List<String>>("keys")
+                    yoloView.setRecordingInfractionRedKeys(keys)
+                    result.success(null)
+                }
+                "stopVideoRecording" -> {
+                    yoloView.stopVideoRecording { path ->
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            result.success(path)
+                        }
+                    }
+                }
                 "reconnectStream" -> {
                     // Handle reconnection request from Flutter
                     Log.d(TAG, "Received reconnect request from Flutter")
@@ -478,6 +608,7 @@ class YOLOPlatformView(
             yoloView.stop()
             // Clear callbacks by setting them to empty implementations
             yoloView.setStreamCallback { }
+            yoloView.setRecordingRedKeysResolver(null)
             yoloView.setOnInferenceCallback { }
             yoloView.setOnModelLoadCallback { }
         } catch (e: Exception) {

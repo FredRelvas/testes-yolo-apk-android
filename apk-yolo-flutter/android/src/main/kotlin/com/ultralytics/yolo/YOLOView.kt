@@ -31,6 +31,8 @@ import android.view.Gravity
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
 import android.content.res.Configuration
+import java.io.File
+import android.os.Environment
 
 class YOLOView @JvmOverloads constructor(
     context: Context,
@@ -208,7 +210,17 @@ class YOLOView @JvmOverloads constructor(
     // New fields for proper teardown:
     private var cameraExecutor: ExecutorService? = null
     private var imageAnalysisUseCase: ImageAnalysis? = null
-    
+
+    // Gravacao MP4 com deteccoes desenhadas (MediaCodec + bitmap anotado).
+    private var annotatedVideoRecorder: AnnotatedVideoRecorder? = null
+    private var annotatedVideoFile: File? = null
+
+    /** Chaves EPI (infracao) enviadas pelo Flutter durante gravacao; snapshot imutavel. */
+    @Volatile
+    private var recordingInfractionRedKeys: Set<String> = emptySet()
+    private var recordingRedKeysResolver: ((YOLOResult) -> Set<String>)? = null
+    private var lastAnnotatedVideoQueueNs: Long = 0
+
     // Flag to track if the view is stopped/disposed to prevent race conditions
     @Volatile
     private var isStopped = false    
@@ -553,12 +565,12 @@ class YOLOView @JvmOverloads constructor(
                             return@addListener
                         }
 
-                        Log.d(TAG, "Binding camera use cases to lifecycle")
+                        Log.d(TAG, "Binding camera use cases to lifecycle (preview + analysis)")
                         camera = cameraProvider.bindToLifecycle(
                             owner,
                             cameraSelector,
                             previewUseCase,
-                            imageAnalysisUseCase  // the field, not a local val
+                            imageAnalysisUseCase
                         )
                         
                         // Reset zoom to 1.0x when camera starts
@@ -572,7 +584,7 @@ class YOLOView @JvmOverloads constructor(
                         camera?.let { cam: Camera ->
                             val cameraInfo = cam.cameraInfo
                             minZoomRatio = cameraInfo.zoomState.value?.minZoomRatio ?: 1.0f
-                            maxZoomRatio = cameraInfo.zoomState.value?.maxZoomRatio ?: 1.0f
+                            maxZoomRatio = cameraInfo.zoomState.value?.maxZoomRatio ?: 10.0f
                             currentZoomRatio = cameraInfo.zoomState.value?.zoomRatio ?: 1.0f
                             Log.d(TAG, "Zoom initialized - min: $minZoomRatio, max: $maxZoomRatio, current: $currentZoomRatio")
                         }
@@ -739,6 +751,8 @@ class YOLOView @JvmOverloads constructor(
                 post {
                     overlayView.invalidate()
                 }
+
+                queueAnnotatedVideoFrame(bitmap, resultWithOriginalImage)
             } catch (e: Exception) {
                 Log.e(TAG, "Error during prediction", e)
             }
@@ -1530,7 +1544,7 @@ class YOLOView @JvmOverloads constructor(
      * Convert YOLOResult to a Map for streaming (ported from archived YOLOPlatformView)
      * Uses detection index correctly to avoid class index confusion
      */
-    private fun convertResultToStreamData(result: YOLOResult): Map<String, Any> {
+    internal fun convertResultToStreamData(result: YOLOResult): Map<String, Any> {
         val map = HashMap<String, Any>()
         val config = streamConfig ?: return emptyMap()
         
@@ -1814,6 +1828,116 @@ class YOLOView @JvmOverloads constructor(
     }
 
     /**
+     * Enfileira frame da camera com caixas de deteccao para o gravador MP4 (~12 FPS).
+     */
+    private fun queueAnnotatedVideoFrame(cameraBitmap: Bitmap, result: YOLOResult) {
+        val rec = annotatedVideoRecorder ?: return
+        if (!rec.isRecording) return
+
+        val now = System.nanoTime()
+        val minIntervalNs = 1_000_000_000L / 12
+        if (now - lastAnnotatedVideoQueueNs < minIntervalNs) return
+        lastAnnotatedVideoQueueNs = now
+
+        try {
+            val orientation = context.resources.configuration.orientation
+            val isLandscape = orientation == Configuration.ORIENTATION_LANDSCAPE
+            val isFrontCamera = lensFacing == CameraSelector.LENS_FACING_FRONT
+
+            val oriented = rotateCameraBitmapForDetector(cameraBitmap, isLandscape, isFrontCamera)
+            val keysForFrame = try {
+                recordingRedKeysResolver?.invoke(result) ?: recordingInfractionRedKeys
+            } catch (e: Exception) {
+                Log.w(TAG, "recordingRedKeysResolver failed", e)
+                recordingInfractionRedKeys
+            }
+            val marked = drawEpiStyleBoxesOnBitmap(oriented, result, task, isFrontCamera, keysForFrame)
+            oriented.recycle()
+            rec.offerFrame(marked)
+        } catch (e: Exception) {
+            Log.e(TAG, "queueAnnotatedVideoFrame failed", e)
+        }
+    }
+
+    /** Chaves das caixas em infracao (alinhado a overlay Flutter / gravacao). */
+    fun setRecordingInfractionRedKeys(keys: List<String>?) {
+        recordingInfractionRedKeys = if (keys.isNullOrEmpty()) emptySet() else keys.toSet()
+    }
+
+    /** Fallback quando o pedido sincrono ao Dart nao devolve chaves a tempo. */
+    internal fun snapshotRecordingInfractionKeys(): Set<String> = recordingInfractionRedKeys
+
+    /**
+     * Se nao-null, e chamado na mesma inferencia antes de desenhar o frame de video,
+     * para obter chaves vermelhas alinhadas a avaliacao de infracao no Dart.
+     */
+    fun setRecordingRedKeysResolver(resolver: ((YOLOResult) -> Set<String>)?) {
+        recordingRedKeysResolver = resolver
+    }
+
+    /**
+     * Inicia gravacao MP4 com deteccoes desenhadas (nao e o fluxo bruto da camera).
+     * Ficheiro em [context.getExternalFilesDir]/Movies/POC_EPI/.
+     */
+    fun startVideoRecording(): String? {
+        if (isStopped) {
+            Log.w(TAG, "startVideoRecording: view stopped")
+            return null
+        }
+        if (annotatedVideoRecorder != null) {
+            Log.w(TAG, "startVideoRecording: already recording")
+            return annotatedVideoFile?.absolutePath
+        }
+        val moviesDir = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES) ?: return null
+        val dir = File(moviesDir, "POC_EPI")
+        if (!dir.exists() && !dir.mkdirs()) {
+            Log.e(TAG, "startVideoRecording: mkdirs failed")
+            return null
+        }
+        val file = File(dir, "video_${System.currentTimeMillis()}.mp4")
+        annotatedVideoFile = file
+        lastAnnotatedVideoQueueNs = 0L
+        return try {
+            val recorder = AnnotatedVideoRecorder(file)
+            recorder.start()
+            annotatedVideoRecorder = recorder
+            Log.d(TAG, "Annotated video recording started: ${file.absolutePath}")
+            file.absolutePath
+        } catch (e: Exception) {
+            Log.e(TAG, "startVideoRecording failed", e)
+            annotatedVideoRecorder = null
+            annotatedVideoFile = null
+            recordingInfractionRedKeys = emptySet()
+            null
+        }
+    }
+
+    /**
+     * Para a gravacao MP4. [onComplete] recebe o caminho do ficheiro ou null em erro.
+     */
+    fun stopVideoRecording(onComplete: (String?) -> Unit) {
+        val rec = annotatedVideoRecorder
+        if (rec == null) {
+            onComplete(null)
+            return
+        }
+        try {
+            rec.stop { path ->
+                annotatedVideoRecorder = null
+                annotatedVideoFile = null
+                recordingInfractionRedKeys = emptySet()
+                onComplete(path)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "stopVideoRecording failed", e)
+            annotatedVideoRecorder = null
+            annotatedVideoFile = null
+            recordingInfractionRedKeys = emptySet()
+            onComplete(null)
+        }
+    }
+
+    /**
      * Stop camera and inference (can be restarted later)
      */
     fun stop() {
@@ -1823,6 +1947,11 @@ class YOLOView @JvmOverloads constructor(
         isStopped = true
 
         try {
+            annotatedVideoRecorder?.stop { }
+            annotatedVideoRecorder = null
+            annotatedVideoFile = null
+            recordingInfractionRedKeys = emptySet()
+
             imageAnalysisUseCase?.clearAnalyzer()
             if (::cameraProviderFuture.isInitialized) {
                 try {

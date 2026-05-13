@@ -15,6 +15,7 @@ import '../../services/infraction_rules_storage.dart';
 import '../../services/infraction_service.dart';
 import '../../services/model_manager.dart';
 import '../../services/model_registry.dart';
+import '../../presentation/widgets/epi_overlay.dart';
 import '../../services/system_metrics_service.dart';
 
 /// Controller que gerencia o estado e a logica de negocio da tela
@@ -64,6 +65,10 @@ class CameraInferenceController extends ChangeNotifier {
   final _yoloController = YOLOViewController();
   late final ModelManager _modelManager;
 
+  // ===== Gravacao de video (MP4 nativo CameraX) =====
+  bool _sessionRecording = false;
+  String? _sessionVideoTargetPath;
+
   // ===== Lifecycle =====
   bool _isDisposed = false;
   Future<void>? _loadingFuture;
@@ -89,6 +94,12 @@ class CameraInferenceController extends ChangeNotifier {
   InfractionRuleSet get activeRules => _activeRules;
   InfractionEvaluation get lastEvaluation => _lastEval;
   SystemMetrics? get lastSystemMetrics => _lastSystemMetrics;
+
+  /// Gravacao de video MP4 ativa.
+  bool get isSessionRecording => _sessionRecording;
+
+  /// Caminho do MP4 em gravacao (quando o nativo iniciou com sucesso).
+  String? get sessionVideoTargetPath => _sessionVideoTargetPath;
 
   /// Valor efetivo de `useGpu` aplicado ao modelo atual.
   bool get effectiveUseGpu => _useGpuOverride ?? _selectedModel.useGpu;
@@ -137,6 +148,11 @@ class CameraInferenceController extends ChangeNotifier {
       _activeRules,
       modelClasses: modelClasses,
     );
+
+    if (_sessionRecording) {
+      final keys = _lastEval.redBoxes.map(EpiOverlay.boxKeyForRecording).toList();
+      unawaited(_yoloController.setRecordingInfractionRedKeys(keys));
+    }
 
     notifyListeners();
   }
@@ -250,6 +266,7 @@ class CameraInferenceController extends ChangeNotifier {
     if (_isDisposed) return;
 
     if (!_isModelLoading && model != _selectedModel) {
+      if (_sessionRecording) unawaited(stopSessionRecording());
       _selectedModel = model;
       // Trocou de modelo: limpa override de delegate -- cada modelo
       // tem sua preferencia declarada no manifest.
@@ -269,6 +286,7 @@ class CameraInferenceController extends ChangeNotifier {
   /// parte da `ValueKey`).
   void toggleUseGpu() {
     if (_isDisposed || _isModelLoading) return;
+    if (_sessionRecording) unawaited(stopSessionRecording());
     final next = !effectiveUseGpu;
     _useGpuOverride = next == _selectedModel.useGpu ? null : next;
     _lastDetections = const [];
@@ -296,6 +314,55 @@ class CameraInferenceController extends ChangeNotifier {
     _infractionService.resetWindow();
     _infractionService.primeWindow(_activeRules.absenceClasses);
     notifyListeners();
+  }
+
+  /// Inicia gravacao de video MP4 (CameraX, sem snapshots em disco).
+  Future<void> startSessionRecording() async {
+    if (_isDisposed || _sessionRecording) return;
+
+    final keys =
+        _lastEval.redBoxes.map(EpiOverlay.boxKeyForRecording).toList();
+    await _yoloController.setRecordingInfractionRedKeys(keys);
+
+    _sessionVideoTargetPath = await _yoloController.startVideoRecording();
+    if (_sessionVideoTargetPath == null) {
+      await _yoloController.setRecordingInfractionRedKeys(null);
+      return;
+    }
+    _sessionRecording = true;
+    notifyListeners();
+  }
+
+  /// Avalia infracoes para o mesmo payload que o nativo usa ao gravar video.
+  Future<List<String>> resolveRecordingRedKeysForVideoFrame(
+    Map<String, dynamic> streamPayload,
+  ) async {
+    if (_isDisposed) return const [];
+    try {
+      final results = YOLODetectionResults.fromMap(streamPayload).detections;
+      final modelClasses = _selectedModel.classes?.toSet() ?? const <String>{};
+      final eval = _infractionService.evaluate(
+        results,
+        _activeRules,
+        modelClasses: modelClasses,
+      );
+      return eval.redBoxes.map(EpiOverlay.boxKeyForRecording).toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Para a gravacao de video. Devolve o caminho do MP4 gravado.
+  Future<String?> stopSessionRecording() async {
+    if (_isDisposed || !_sessionRecording) return null;
+
+    final videoPath = await _yoloController.stopVideoRecording();
+    unawaited(_yoloController.setRecordingInfractionRedKeys(null));
+
+    _sessionRecording = false;
+    _sessionVideoTargetPath = null;
+    notifyListeners();
+    return videoPath;
   }
 
   InfractionRuleSet _resolveRules(ModelDescriptor model) {
@@ -369,6 +436,12 @@ class CameraInferenceController extends ChangeNotifier {
   @override
   void dispose() {
     _isDisposed = true;
+    if (_sessionRecording) {
+      unawaited(_yoloController.stopVideoRecording());
+      unawaited(_yoloController.setRecordingInfractionRedKeys(null));
+    }
+    _sessionRecording = false;
+    _sessionVideoTargetPath = null;
     _metricsSub?.cancel();
     _metricsSub = null;
     super.dispose();

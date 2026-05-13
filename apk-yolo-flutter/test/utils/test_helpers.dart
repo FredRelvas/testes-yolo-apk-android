@@ -65,6 +65,10 @@ class YOLOTestHelpers {
               return true;
             case 'captureFrame':
               return Uint8List.fromList(List.filled(100, 0));
+            case 'startVideoRecording':
+              return '/mock/video.mp4';
+            case 'stopVideoRecording':
+              return '/mock/video.mp4';
             case 'checkModelExists':
               return {
                 'exists': true,
@@ -426,6 +430,14 @@ class YOLOTestHelpers {
             'captureFrame': (call) {
               log.add(call);
               return Uint8List.fromList(List.filled(100, 0));
+            },
+            'startVideoRecording': (call) {
+              log.add(call);
+              return '/mock/video.mp4';
+            },
+            'stopVideoRecording': (call) {
+              log.add(call);
+              return '/mock/video.mp4';
             },
             'checkModelExists': (call) {
               log.add(call);

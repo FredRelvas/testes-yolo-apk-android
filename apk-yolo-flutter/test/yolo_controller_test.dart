@@ -93,6 +93,14 @@ void main() {
       final result = await controller.captureFrame();
       expect(result, isA<Uint8List>());
       YOLOTestHelpers.assertMethodCalled(log, 'captureFrame');
+
+      final started = await controller.startVideoRecording();
+      expect(started, '/mock/video.mp4');
+      YOLOTestHelpers.assertMethodCalled(log, 'startVideoRecording');
+
+      final stopped = await controller.stopVideoRecording();
+      expect(stopped, '/mock/video.mp4');
+      YOLOTestHelpers.assertMethodCalled(log, 'stopVideoRecording');
     });
 
     test('methods handle uninitialized channel gracefully', () async {

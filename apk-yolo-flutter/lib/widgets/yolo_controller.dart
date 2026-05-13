@@ -221,6 +221,19 @@ class YOLOViewController {
     }
   }
 
+  Future<void> setRecordingInfractionRedKeys(List<String>? keys) async {
+    if (_methodChannel != null) {
+      try {
+        await _methodChannel!.invokeMethod<void>(
+          'setRecordingInfractionRedKeys',
+          <String, dynamic>{'keys': keys},
+        );
+      } catch (e) {
+        logInfo('Error setting recording infraction keys: $e');
+      }
+    }
+  }
+
   Future<Uint8List?> captureFrame() async {
     if (_methodChannel != null) {
       try {
@@ -228,6 +241,35 @@ class YOLOViewController {
         return result is Uint8List ? result : null;
       } catch (e) {
         logInfo('Error capturing frame: $e');
+        return null;
+      }
+    }
+    return null;
+  }
+
+  /// Inicia gravacao MP4 (Android CameraX). Sem audio.
+  /// Retorna o caminho do ficheiro ou null se indisponivel.
+  Future<String?> startVideoRecording() async {
+    if (_methodChannel != null) {
+      try {
+        final r = await _methodChannel!.invokeMethod<String>('startVideoRecording');
+        return r;
+      } catch (e) {
+        logInfo('Error starting video recording: $e');
+        return null;
+      }
+    }
+    return null;
+  }
+
+  /// Para a gravacao MP4. Retorna o caminho final ou null.
+  Future<String?> stopVideoRecording() async {
+    if (_methodChannel != null) {
+      try {
+        final r = await _methodChannel!.invokeMethod<String?>('stopVideoRecording');
+        return r;
+      } catch (e) {
+        logInfo('Error stopping video recording: $e');
         return null;
       }
     }

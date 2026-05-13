@@ -26,6 +26,9 @@ class YOLOView extends StatefulWidget {
   final Function(List<YOLOResult>)? onResult;
   final Function(YOLOPerformanceMetrics)? onPerformanceMetrics;
   final Function(Map<String, dynamic>)? onStreamingData;
+  /// Responde a pedidos nativos sincronos durante gravacao MP4 (chaves vermelhas).
+  final Future<List<String>> Function(Map<String, dynamic> payload)?
+      onResolveRecordingRedKeys;
   final bool showNativeUI;
   final Function(double zoomLevel)? onZoomChanged;
   final YOLOStreamingConfig? streamingConfig;
@@ -45,6 +48,7 @@ class YOLOView extends StatefulWidget {
     this.onResult,
     this.onPerformanceMetrics,
     this.onStreamingData,
+    this.onResolveRecordingRedKeys,
     this.showNativeUI = false,
     this.onZoomChanged,
     this.streamingConfig,
@@ -124,10 +128,9 @@ class _YOLOViewState extends State<YOLOView> {
       } catch (e) {
         logInfo('YOLOView: Error processing streaming data: $e');
       }
-    } else {
-      _handleDetectionResults(event);
-      _handlePerformanceMetrics(event);
     }
+    _handleDetectionResults(event);
+    _handlePerformanceMetrics(event);
   }
 
   void _handleDetectionResults(Map<dynamic, dynamic> event) {
@@ -391,6 +394,13 @@ class _YOLOViewState extends State<YOLOView> {
           widget.onZoomChanged!(zoomLevel);
         }
         return null;
+      case 'resolveRecordingRedKeys':
+        final resolver = widget.onResolveRecordingRedKeys;
+        if (resolver == null) return null;
+        final raw = call.arguments;
+        if (raw is! Map) return <String>[];
+        final map = Map<String, dynamic>.from(raw);
+        return resolver(map);
       default:
         return null;
     }

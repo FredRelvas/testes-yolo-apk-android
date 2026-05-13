@@ -37,6 +37,8 @@ class CameraInferenceContent extends StatelessWidget {
             streamingConfig: const YOLOStreamingConfig.minimal(),
             showOverlays: false,
             onResult: controller.onDetectionResults,
+            onResolveRecordingRedKeys:
+                controller.resolveRecordingRedKeysForVideoFrame,
             onPerformanceMetrics: (metrics) {
               controller.onPerformanceMetrics(metrics.fps);
               controller.onProcessingTime(metrics.processingTimeMs);
