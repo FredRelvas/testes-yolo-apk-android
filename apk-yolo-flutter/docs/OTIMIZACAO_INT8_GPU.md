@@ -159,8 +159,15 @@ Todas as previsoes da fase de investigacao foram validadas:
 - `yolo*_int8_full` GPU funcionam apos refactor (eram hibridos ou falhavam)
 - `yolo*_int8_dr` GPU **falham** mesmo apos refactor, conforme previsto
   (3 ops orfas `batch=400` persistem no caminho de export do Ultralytics 8.4.52)
-- `EPI YOLO26m` empata GPU vs CPU (~745 ms): o modelo medio satura o hardware
-  independente do acelerador
+- `EPI YOLO26m` empata GPU vs CPU (~745 ms): o modelo **tem NMS embutido no
+  grafo** (output `[1, 300, 6]`, ver heuristica no [Apendice B](#apendice-b--nms-no-grafo-vs-fora-do-grafo)),
+  forcando execucao no mesmo modo hibrido inutil que o `yolo26n_int8_full`
+  tinha antes do refactor — GPU pega so as primeiras convs, o resto (~95% das
+  ops, incluindo o NMS) cai em CPU XNNPACK. Solucao seria **reexportar o EPI
+  com `nms=False, end2end=False`** (se tivermos acesso ao `.pt`), seguindo o
+  mesmo pipeline do [Apendice C](#apendice-c--pipeline-de-quantizacao-corrigido).
+  Expectativa pos-refactor: ~150-200 ms na GPU (4-5× speedup, proporcional ao
+  ganho observado no `yolo26n_int8_full`)
 
 ### 2. **O overhead virou o gargalo** (insight mais importante)
 
