@@ -8,3 +8,5 @@ dados-validacao/EPI/labels/
 
 # Saídas dos benchmarks
 benchmarks-pc/benchmark_outputs/
+
+benchmarks-pc/datasets/coco8
